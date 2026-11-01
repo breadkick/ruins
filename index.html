@@ -10015,7 +10015,8 @@ function say(lines, choices = null, opt = null) {
   if (!q.length) return;
   if (dlg) { const last = dlg.lines[dlg.lines.length - 1]; if (opt && opt.cg) dlg.cg = opt.cg;
     if (q.length === 1 && !choices && last && last.text === q[0].text && last.who === q[0].who) return;   // 같은 말이 연달아 쌓이지 않게
-    dlg.lines.push(...q); dlgMeta(); if (choices) dlg.choices = choices; if (!dlg.timer && dlg.i === dlg.lines.length - q.length - 1) document.getElementById("dialog").classList.add("ready"); return; }
+    if (dlg.choices && !choices) dlg.lines.splice(dlg.i + 1, 0, ...q); else dlg.lines.push(...q);   // 선택지가 걸린 대화엔 그 앞에 끼움 (선택지는 늘 마지막 말에)
+    dlgMeta(); if (choices) dlg.choices = choices; if (!dlg.timer && dlg.i === dlg.lines.length - q.length - 1) document.getElementById("dialog").classList.add("ready"); return; }
   dlg = { lines: q, i: 0, choices, sel: 0, timer: null, cg: opt && opt.cg || null };
   document.getElementById("dialog").classList.add("show"); document.body.classList.add("talking");
   showLine();
@@ -10292,7 +10293,9 @@ function pickChoice(k) {
     const lines = got.map(m => { const d = document.createElement("div"); d.innerHTML = m; const sp = d.querySelector("span[class]");
       return { text: d.textContent, cls: sp && ["danger", "buff"].includes(sp.className) ? sp.className : "" }; });
     const pages = []; for (let i = 0; i < lines.length; i += 3) { const g = lines.slice(i, i + 3); pages.push([null, { text: g.map(x => x.text).join("\n"), cls: g.find(x => x.cls === "danger") ? "danger" : g.every(x => x.cls === "buff") ? "buff" : "" }]); }
-    say(pages);
+    if (pages.length && dlg && dlg.choices && dlg.i === 0) {   // 고른 일이 새 대화(사건)를 열었으면: 기록(얻은 것 등)을 먼저 보여 주고 그 대화로
+      const q = pages.map(([who, t]) => ({ who, ...t })); dlg.lines.unshift(...q); dlgMeta(); clearTimeout(dlg.timer); dlg.timer = null; showLine();
+    } else say(pages);
   }
 }
 document.addEventListener("DOMContentLoaded", () => { const R = document.getElementById("right"); if (R) R.addEventListener("click", e => { if (dlg && document.body.classList.contains("talking") && !e.target.closest("#log")) { e.preventDefault(); advanceDialog(); } }); });
@@ -11296,8 +11299,8 @@ function renderAcctPop() {
   if (keep) { const e2 = [...el.querySelectorAll("input")].find(i => i.placeholder === keep.ph); if (e2) { e2.focus(); try { e2.setSelectionRange(keep.s, keep.s); } catch (e) {} } }
 }
 // 버전: 바뀌면 처음 열 때 업데이트 내용 창. 웹에 올린 판이면 version.json 을 10분마다 보고 새 판이 나오면 새로고침 창
-const GAME_VER = "2026.11.01-6";
-const PATCH_NOTES = ["이동 시간이 위치로 정해짐: 쉘터 근처 2시간 · 시가지 3시간 · 공장 지대 4시간 · 항구 5시간 (같은 지역 안은 1시간)", "기력도 위치에 따라: 6 · 10 · 14 · 18", "배고픔은 흐른 시간만큼 (1시간에 1)", "장소 안에서 걷는 건 시간이 안 듦", "아침이면 모든 장소 뒤질 거리가 3번으로 다시 참"];
+const GAME_VER = "2026.11.01-7";
+const PATCH_NOTES = ["고침: 수색 중 사건(쓰러진 생존자 등)이 뜰 때 대사가 '…획득'으로 바뀌어 보이던 것", "이동 시간·기력이 위치로 정해짐: 쉘터 근처 2시간 · 시가지 3시간 · 공장 지대 4시간 · 항구 5시간", "장소 안에서 걷는 건 시간이 안 듦"];
 function updSeen() {
   const was = storeGet("rpg_ver"); storeSet("rpg_ver", GAME_VER);
   if (was && was !== GAME_VER) askOpen({ title: "업데이트됐어", lines: [`<span class="k">${GAME_VER}</span>`, `<ul class="updList">${PATCH_NOTES.map(t => `<li>${t}</li>`).join("")}</ul>`], go: ["확인", null], stay: "" });
