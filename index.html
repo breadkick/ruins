@@ -5929,7 +5929,20 @@ function renderAsk() {
   el.innerHTML = `<div class="askBox" onclick="event.stopPropagation()"><div class="askTitle">${ASK.title}</div>${ASK.lines.map(t => `<p>${t}</p>`).join("")}<div class="askBtns"><button class="askGo" onclick="askGo()">${ASK.go[0]}</button>${ASK.stay ? `<button onclick="askClose()">${ASK.stay}</button>` : ""}</div></div>`;
   el.classList.add("show");
 }
-function travelTo(id, force) { if (monster) return; if (!force) { const rg = dangerAhead([id]); if (rg) { warnGo(rg, () => travelTo(id, true)); return; } } const link = busLink(world.current, id), t0 = link ? 0 : edgeTurns(world.current, id); if (t0 === null) return; const hv = t0 && heavy() ? 1 : 0, sl = staSlow(t0), t = t0 + hv + sl; passTime(t); if (link) log(id === "bus" ? "버스에 올라탔다." : "버스에서 내렸다."); else log(t ? `${places[id].name}${jo(places[id].name, "으로", "로")} 이동했다. (${dur(t)} · 기력 -${t0 * STA_MOVE})${hv ? " (짐이 무겁다)" : ""}${sl ? " (지쳐서 느리다)" : ""}` : `${places[id].name}${jo(places[id].name, "으로", "로")} 나왔다.`); staAdd(-t0 * STA_MOVE); arrive(id); selectedPlace = world.current; showScene(world.current); render(); }
+// 이동: 경로가 몇 곳을 지나든, 걸리는 시간·기력은 가는 곳의 지역으로 정해짐 (배고픔은 흐른 시간만큼 줄어듦: 1시간에 1)
+// 쉘터 근처 2시간 · 시가지 3시간 · 공장 지대 4시간 · 항구 5시간. 같은 지역 안 장소끼리는 1시간. 쉘터·마당·뒤뜰·길드 거점끼리는 그대로(바로 옆)
+const TRIP = { shelter: { t: 4, sta: 6 }, city: { t: 6, sta: 10 }, factory: { t: 8, sta: 14 }, harbor: { t: 10, sta: 18 } }, TRIP_NEAR = { t: 2, sta: 4 };
+const HOME_SET = ["shelter", "yard", "pen", "guild"];
+function tripOf(from, to) {   // { t: 턴, sta: 기력 } (같은 장소면 null)
+  if (from === to) return null; const A = places[from], B = places[to];
+  if (HOME_SET.includes(from) && HOME_SET.includes(to)) { const e = edgeTurns(from, to); return { t: e == null ? 1 : e, sta: 0 }; }
+  if (A.wild || B.wild) { const e = edgeTurns(from, to); return e == null ? null : { t: e, sta: e * STA_MOVE }; }   // 미지의 길은 원래대로
+  const homeSide = HOME_SET.includes(from) ? B : HOME_SET.includes(to) ? A : null;
+  if (homeSide) return TRIP[homeSide.region] || TRIP.shelter;   // 쉘터 ↔ 장소
+  return A.region === B.region ? TRIP_NEAR : TRIP[B.region] || TRIP.shelter;   // 장소 ↔ 장소
+}
+function tripTxt(from, to) { const T = tripOf(from, to); if (!T) return ""; const t = T.t + (T.t && heavy() ? 1 : 0) + staSlow(T.t); return `${dur(t)}${T.sta ? ` · 기력 -${T.sta}` : ""}${t >= HR ? ` · 포만 -${Math.floor(t / HR)}` : ""}${heavy() ? " · 짐이 무거움" : ""}`; }
+function travelTo(id, force) { if (monster) return; if (!force) { const rg = dangerAhead([id]); if (rg) { warnGo(rg, () => travelTo(id, true)); return; } } const link = busLink(world.current, id), e0 = link ? 0 : edgeTurns(world.current, id); if (e0 === null) return; const T = link ? { t: 0, sta: 0 } : tripOf(world.current, id) || { t: e0, sta: e0 * STA_MOVE }, t0 = T.t, hv = t0 && heavy() ? 1 : 0, sl = staSlow(t0), t = t0 + hv + sl; passTime(t); if (link) log(id === "bus" ? "버스에 올라탔다." : "버스에서 내렸다."); else log(t ? `${places[id].name}${jo(places[id].name, "으로", "로")} 이동했다. (${dur(t)}${T.sta ? ` · 기력 -${T.sta}` : ""})${hv ? " (짐이 무겁다)" : ""}${sl ? " (지쳐서 느리다)" : ""}` : `${places[id].name}${jo(places[id].name, "으로", "로")} 나왔다.`); staAdd(-T.sta); arrive(id); selectedPlace = world.current; showScene(world.current); render(); }
 function findPath(from, to) {
   const dist = { [from]: 0 }, prev = {}, q = [from], done = new Set();
   while (q.length) { q.sort((a, b) => dist[a] - dist[b]); const u = q.shift(); if (u === to) break; if (done.has(u)) continue; done.add(u);
@@ -5938,7 +5951,9 @@ function findPath(from, to) {
   const path = [to]; while (path[0] !== from) path.unshift(prev[path[0]]);
   return { path, turns: dist[to] };
 }
-function travelPath(id, force) { if (monster) return; const r = findPath(world.current, id); if (!r) return; if (!force) { const rg = dangerAhead(r.path.slice(1)); if (rg) { warnGo(rg, () => travelPath(id, true)); return; } } for (let i = 1; i < r.path.length; i++) { const t0 = edgeTurns(r.path[i - 1], r.path[i]); passTime(t0 + (t0 && heavy() ? 1 : 0) + staSlow(t0)); staAdd(-t0 * STA_MOVE); arrive(r.path[i]); if (monster) { log("가는 길에 막혔다."); break; } } selectedPlace = world.current; showScene(world.current); render(); }
+function travelPath(id, force) { if (monster) return; const r = findPath(world.current, id); if (!r) return; if (!force) { const rg = dangerAhead(r.path.slice(1)); if (rg) { warnGo(rg, () => travelPath(id, true)); return; } } const T = tripOf(world.current, id) || { t: r.turns, sta: r.turns * STA_MOVE }, hops = r.path.length - 1, tAll = T.t + (T.t && heavy() ? 1 : 0) + staSlow(T.t); let tDone = 0, sDone = 0;   // 전체 시간·기력을 지나는 곳마다 나눠서 (길에서 막히면 거기까지만)
+  for (let i = 1; i < r.path.length; i++) { const tk = Math.round(tAll * i / hops) - tDone, sk = Math.round(T.sta * i / hops) - sDone; tDone += tk; sDone += sk; passTime(tk); staAdd(-sk); arrive(r.path[i]); if (monster) { log("가는 길에 막혔다."); break; } }
+  if (!monster) log(`${places[world.current].name}${jo(places[world.current].name, "에", "에")} 도착했다. (${dur(tAll)}${T.sta ? ` · 기력 -${T.sta}` : ""})`); selectedPlace = world.current; showScene(world.current); render(); }
 
 // =============== 장소 행동 ===============
 function lootTable(id) { const D = deepRoom(id), deep = D && deepIdx(id) > 0, src = deep && D.items ? D.items : places[id].items, W = deep ? { common: 58, rare: 32, unique: 10 } : { common: 70, rare: 25, unique: 5 };
@@ -9039,10 +9054,10 @@ function renderPlaceTab() {
   }
   if (!here) {
     const direct = edgeTurns(world.current, id);
-    if (direct !== null) html += choice("이동한다", `travelTo('${id}')`, direct ? `${dur(direct + (heavy() ? 1 : 0) + staSlow(direct))} · 기력 -${direct * STA_MOVE}${heavy() ? " · 짐이 무거움" : ""}` : "");
+    if (direct !== null) html += choice("이동한다", `travelTo('${id}')`, tripTxt(world.current, id));
     html += busGoChoice(id);
     if (direct !== null) {} else if (busRoom() && (id === busOutside() || id === BUS().at)) html += choice("버스에서 내린다", `travelTo('${busOutside()}')`, "시간 안 듦", "hot");
-    else if (busRoom()) html += `<p class="k">걸어가려면 버스에서 내려야 한다.</p>`; else { const r = findPath(world.current, id); html += r ? choice("아는 길로 간다", `travelPath('${id}')`, `${dur(r.turns)} · 기력 -${r.turns * STA_MOVE} · ${r.path.length - 1}곳 경유`) : `<p class="empty">아는 길로는 갈 수 없다.</p>`; }
+    else if (busRoom()) html += `<p class="k">걸어가려면 버스에서 내려야 한다.</p>`; else { const r = findPath(world.current, id); html += r ? choice(id === "shelter" ? "쉘터로 돌아간다" : "아는 길로 간다", `travelPath('${id}')`, `${tripTxt(world.current, id)} · ${r.path.length - 1}곳 경유`) : `<p class="empty">아는 길로는 갈 수 없다.</p>`; }
     if (view === "map" && isVisited(id)) html += choice("장소를 본다", `showScene('${id}')`);
     return html;
   }
@@ -10728,7 +10743,7 @@ document.addEventListener("keydown", (e) => {
 });
 // 장면 안에서 한 칸 걷기: 두 칸마다 30분 (한 칸에 15분꼴). 쉘터·마당·뒤뜰에선 안 흐름
 let stepOdd = false;
-function stepTime() { if (atBase()) return; stepOdd = !stepOdd; if (!stepOdd) passTime(1); }
+function stepTime() { }   // 장소 안에서 걷는 건 시간이 안 듦 (시간은 장소 사이를 오갈 때·행동할 때만)
 function stepHero(key) {
   if (creating || dlg || view !== "scene" || selectedPlace !== world.current || monster) return;
   const left = heroAnim ? HERO_STEP_MS - (performance.now() - heroAnim.t0) : 0;
@@ -11281,8 +11296,8 @@ function renderAcctPop() {
   if (keep) { const e2 = [...el.querySelectorAll("input")].find(i => i.placeholder === keep.ph); if (e2) { e2.focus(); try { e2.setSelectionRange(keep.s, keep.s); } catch (e) {} } }
 }
 // 버전: 바뀌면 처음 열 때 업데이트 내용 창. 웹에 올린 판이면 version.json 을 10분마다 보고 새 판이 나오면 새로고침 창
-const GAME_VER = "2026.11.01-5";
-const PATCH_NOTES = ["모든 장소: 아침이 되면 뒤질 거리가 다시 3번으로 꽉 참", "물가·방사능 장소도 3번", "안쪽 방이 있는 장소: 방마다 하루 3번 수색"];
+const GAME_VER = "2026.11.01-6";
+const PATCH_NOTES = ["이동 시간이 위치로 정해짐: 쉘터 근처 2시간 · 시가지 3시간 · 공장 지대 4시간 · 항구 5시간 (같은 지역 안은 1시간)", "기력도 위치에 따라: 6 · 10 · 14 · 18", "배고픔은 흐른 시간만큼 (1시간에 1)", "장소 안에서 걷는 건 시간이 안 듦", "아침이면 모든 장소 뒤질 거리가 3번으로 다시 참"];
 function updSeen() {
   const was = storeGet("rpg_ver"); storeSet("rpg_ver", GAME_VER);
   if (was && was !== GAME_VER) askOpen({ title: "업데이트됐어", lines: [`<span class="k">${GAME_VER}</span>`, `<ul class="updList">${PATCH_NOTES.map(t => `<li>${t}</li>`).join("")}</ul>`], go: ["확인", null], stay: "" });
