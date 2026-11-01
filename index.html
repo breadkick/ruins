@@ -545,6 +545,7 @@
   #dialog { position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 5; display: none; gap: 14px; align-items: flex-start;
             background: #0d0c0af2; border: 2px solid var(--line); box-shadow: 0 0 0 2px #000; padding: 12px 16px 14px; min-height: 108px; cursor: pointer; }
   #dialog.show { display: flex; }
+  #dialog.show { max-height: calc(100% - 24px); overflow-y: auto; overscroll-behavior: contain; }   /* 선택지가 많아도 위가 잘리지 않게: 장면 안에서 스크롤 */
   /* 고정 동료의 큰 포트레이트: 대사창 위에 서고 아래가 대사창에 살짝 가림 (PC 왼쪽 · 좁은 화면 오른쪽) */
   #dlgPort { position: absolute; display: none; pointer-events: none; object-fit: contain; object-position: 50% 100%; filter: drop-shadow(0 0 1px #000) drop-shadow(0 6px 12px rgba(0, 0, 0, 0.55)); }
   #dlgPort.show { display: block; animation: portIn 0.18s ease-out; }
@@ -666,7 +667,7 @@
   .farmFx .fxCan .ico { margin: 0; display: block; transform: scaleX(-1) scale(0.6); }
   @keyframes fxTilt { 0% { transform: rotate(0deg); opacity: 0; } 15% { opacity: 1; } 40%, 80% { transform: rotate(28deg); opacity: 1; } 100% { transform: rotate(0deg); opacity: 0; } }
   #sceneWorld > [data-thing] { cursor: pointer; }
-  @media (max-width: 640px) { #dialog { left: 6px; right: 6px; bottom: 6px; padding: 10px 12px; gap: 10px; } .dlgPic { width: 56px; height: 56px; } }
+  @media (max-width: 640px) { #dialog { left: 6px; right: 6px; bottom: 6px; padding: 10px 12px; gap: 10px; } #dialog.show { max-height: calc(100% - 12px); } #dialog .dlgChoices { gap: 4px; margin-top: 6px; } #dialog .dlgChoices button { font-size: 13px; padding: 5px 10px; } .dlgPic { width: 56px; height: 56px; } }
 
   .edge { stroke: var(--line); stroke-width: 2; }
   .edge.known { stroke: var(--ink-dim); }
@@ -4735,7 +4736,7 @@ function mateHome(m) { return !m.away && mateOut() !== m; }
 // world.n12 = { met, fixed (배터리 끼워 줌), joined }
 const N12_AT = "substation", N12_TILES = [[2, 4], [4, 2], [3, 4], [4, 3], [1, 3], [3, 1], [2, 2]], N12_NPC = { id: "n12npc", fixed: "n12", look: null };
 function N12() { return world.n12 || (world.n12 = {}); }
-function n12Waiting() { return !N12().joined && !mates().some(m => m.fixed === "n12"); }
+function n12Waiting() { return !N12().joined && !mates().some(m => m.fixed === "n12") && !fixedAway("n12"); }
 function n12Who(ex) { return { name: N12().fixed ? "N12" : "???", face: { port: "n12", ex } }; }
 function n12Choices() {
   if (!N12().fixed) return [["배터리를 끼워 준다", n12Fix, itemCount("배터리") ? `가방에 배터리 ${itemCount("배터리")}개` : "배터리 없음"], ["나중에 온다", () => say([[n12Who("worry"), "…기다릴게요. 어차피 움직일 수가 없으니까요."]])]];
@@ -4760,14 +4761,14 @@ function n12Fix() {
 function n12Join() {
   const R = N12(); if (!n12Waiting()) return;
   if (!mateRoom()) { say([[n12Who("worry"), "쉘터에 자리가… 없나 봐요. 잠자리가 하나 더 생기면 데리러 와 주세요."]]); return; }
-  const m = newMate("n12"); m.aff = 25;
+  const m = newMate("n12"); m.aff = 25; fixedRestore(m);
   if (mateJoin(m)) { R.joined = true; say([[mateWho(m, "laugh"), "잘 부탁드려요. 무기는 밤마다 제가 손봐 둘게요."]]); }
 }
 // 이진혁: 숨은 옛 군 벙커에 다친 군인이 모래주머니 뒤에서 총을 겨누고 있다. 약초 붕대나 의약품으로 치료해 주면 동료가 됨 (자리가 없으면 거기서 기다림)
 // world.jh = { met, healed, joined }
 const JH_AT = "bunker", JH_TILES = [[5, 4], [5, 3], [4, 4], [5, 5], [3, 4], [4, 5], [2, 4]], JH_AID = ["약초 붕대", "의약품"];
 function JH() { return world.jh || (world.jh = {}); }
-function jhWaiting() { return !JH().joined && !mates().some(m => m.fixed === "jh"); }
+function jhWaiting() { return !JH().joined && !mates().some(m => m.fixed === "jh") && !fixedAway("jh"); }
 function jhWho(ex) { return { name: JH().healed ? "이진혁" : "???", face: { port: "jh", ex } }; }
 function jhAid() { return JH_AID.find(n => itemCount(n) > 0) || null; }
 function jhChoices() {
@@ -4798,14 +4799,14 @@ function jhHeal() {
 function jhJoin() {
   const R = JH(); if (!jhWaiting()) return;
   if (!mateRoom()) { say([[jhWho("worry"), "자리가 없나. …침낭 하나 더 생기면 다시 와라. 기다리는 건 잘한다."]]); return; }
-  const m = newMate("jh"); m.aff = 20;
+  const m = newMate("jh"); m.aff = 20; fixedRestore(m);
   if (mateJoin(m)) { R.joined = true; say([[mateWho(m, "laugh"), "명령은 네가 내려라. …잘 부탁한다, 대장."]]); }
 }
 // 로우: 시가지 정비소에서 낡은 차 밑에 누워 있다. 기름통 1개를 건네면 시동을 걸어 보고(안 걸림), 동료가 됨 (자리가 없으면 거기서 기다림)
 // world.mech = { met, oiled, joined, bp: { 1: true, 2: true } (설계도 알림) }
 const MECH_AT = "garage", MECH_TILES = [[2, 3], [2, 4], [4, 4], [4, 3], [3, 4]];   // 낡은 차 옆
 function MECH() { return world.mech || (world.mech = {}); }
-function mechWaiting() { return !MECH().joined && !mates().some(m => m.fixed === "mech"); }
+function mechWaiting() { return !MECH().joined && !mates().some(m => m.fixed === "mech") && !fixedAway("mech"); }
 function mechWho(ex) { return { name: MECH().oiled ? "로우" : "???", face: { port: "mech", ex } }; }
 function mechChoices() {
   if (!MECH().oiled) return [["기름통을 건넨다", mechOil, itemCount("기름통") ? `가방에 기름통 ${itemCount("기름통")}개` : "기름통 없음"], ["나중에 온다", () => say([[mechWho(), "그래그래, 천천히 와. 난 어디 안 가. 갈 데도 없고~"]])]];
@@ -4832,7 +4833,7 @@ function mechOil() {
 function mechJoin() {
   const R = MECH(); if (!mechWaiting()) return;
   if (!mateRoom()) { say([[mechWho(), "자리가 꽉 찼어? 침낭 하나만 더 깔아 줘. 난 바닥도 괜찮은데, 허리가 안 괜찮아서."]]); return; }
-  const m = newMate("mech"); m.aff = 20;
+  const m = newMate("mech"); m.aff = 20; fixedRestore(m);
   if (mateJoin(m)) { R.joined = true; say([[mateWho(m), "잘 부탁해, 대장. 무기 맡기면 기름칠은 공짜로 해 줄게~"]]); }
 }
 function mechMate() { return mates().find(m => m.fixed === "mech") || null; }
@@ -4890,7 +4891,7 @@ function mechUnmod(m, k) {
 // world.ts = { met, cleared, joined, seed: { 1: true, 2: true } (씨앗 받음), seedDay (마지막으로 씨앗 나눠 받은 날) }
 const TS_AT = "farm", TS_TILES = [[5, 3], [5, 4], [4, 5], [5, 2], [3, 5], [5, 5]];   // 밭 오른쪽 아래 (들어오는 칸과 안 겹치게)
 function TS() { return world.ts || (world.ts = {}); }
-function tsWaiting() { return !TS().joined && !mates().some(m => m.fixed === "ts"); }
+function tsWaiting() { return !TS().joined && !mates().some(m => m.fixed === "ts") && !fixedAway("ts"); }
 function tsWho(ex) { return { name: TS().cleared ? MATE_FIXED.ts.name : "???", face: { port: "ts", ex } }; }
 function tsMate() { return mates().find(m => m.fixed === "ts") || null; }
 function tsChoices() {
@@ -4925,7 +4926,7 @@ function tsCrowWin() {
 function tsJoin() {
   const R = TS(); if (!tsWaiting()) return;
   if (!mateRoom()) { say([[tsWho("worry"), "자, 자리도 없으면서 데려가겠다는 거냐?! …침낭 하나 더 깔고 와. 기다리는 거 아니거든."]]); return; }
-  const m = newMate("ts"); m.aff = 20;
+  const m = newMate("ts"); m.aff = 20; fixedRestore(m);
   if (mateJoin(m)) { R.joined = true; say([[mateWho(m, "base"), "따라가 주는 거야. 네 밭이 불쌍해서. …잘 부탁한다고는 안 했다."]]); }
 }
 // 농사꾼 능력: 밭 당번이면 물이 늘 촉촉하고 더 빨리 자람 · 닭도 챙김 · 거둘 때 풍작 · 친해지면 씨앗
@@ -5025,7 +5026,14 @@ function mateWear(m) {   // 같이 싸워 맞힐 때마다
   const w = mateWpn(m); if (!w || w.dur <= 0) return; w.dur--;
   if (w.dur === 0) { log(`<span class="warn">${m.name}의 ${w.name}${jo(w.name, "이", "가")} 부러졌다. 돌려받아 고치자.</span>`); note("mjob", `${m.name}의 ${w.name}${jo(w.name, "이", "가")} 부러졌다.`, m.id + ":wpn"); delete mateArtCache[m.id]; delete mateArtCache["fx:" + m.id]; }
 }
+// 이름 있는 동료(N12·진혁·로우·태식)는 떠나도 하루 뒤 원래 자리로 돌아가 있음. 다시 데려오면 예전 정(친밀도 -10)·기록 그대로
+function fixedState(k) { return { n12: N12, jh: JH, mech: MECH, ts: TS }[k]; }
+function fixedAway(k) { const f = fixedState(k), R = f && f(); return !!(R && R.gone && dayNo() < (R.goneDay || 0) + 1); }
+function fixedRestore(m) { const f = fixedState(m.fixed), R = f && f(); if (!R || !R.gone) return; const G = R.gone; delete R.gone; delete R.goneDay;
+  Object.assign(m, G, { id: m.id, aff: Math.max(10, (G.aff || 20) - 10), bound: false, weapon: null, away: null, hurt: null, starve: 0 }); m.hp = mateMax(m); }
 function mateLeave(m, why, out) {
+  if (m.fixed && fixedState(m.fixed) && why !== "home") { const R = fixedState(m.fixed)(); R.joined = false; R.gone = JSON.parse(JSON.stringify({ ...m, weapon: null })); R.goneDay = dayNo();
+    note("mleft", `${m.name}${jo(m.name, "은", "는")} 처음 만났던 곳으로 돌아갔다. 내일부터 다시 찾아가 데려올 수 있다.`); }
   const i = mates().indexOf(m); if (i < 0) return; mates().splice(i, 1); if (player.mateOut === m.id) player.mateOut = null; if (player.lover === m.id) player.lover = null; delete petSpot["m:" + m.id];
   { const w = mateWpn(m); if (w) { addItem(w.name); wdPut(w.name, w.dur); m.weapon = null; (out ? q => out.push(q) : log)(`${m.name}${jo(m.name, "이", "가")} 쥐고 있던 ${w.name}${jo(w.name, "은", "는")} 두고 갔다.`); } }
   if (why === "hungry") note("mleft", `${m.name}${jo(m.name, "이", "가")} 쪽지를 남기고 떠났다. ‘미안. 배가 너무 고파서…’`);
@@ -5034,7 +5042,7 @@ function mateLeave(m, why, out) {
 function mateDismiss(id) {
   const m = mateById(id); if (!m || !atBase() || m.away) return;
   if (m.friend) { askOpen({ title: `${m.name} 돌려보내기`, lines: ["자기 쉘터로 돌려보낼까? 인연 탭의 명함에서 다시 데려올 수 있어."], go: ["돌려보낸다", () => { mateLeave(m, "home"); render(); }], stay: "그만둔다" }); return; }
-  askOpen({ title: `${m.name} 떠나보내기`, lines: ["정말 떠나보낼까? 다시 돌아오지 않는다."], go: ["떠나보낸다", () => { mateLeave(m, "bye"); render(); }], stay: "그만둔다" });
+  askOpen({ title: `${m.name} 떠나보내기`, lines: [m.fixed ? "정말 떠나보낼까? 처음 만났던 곳으로 돌아가. 하루 뒤부터 찾아가면 다시 데려올 수 있어 (친밀도 -10)." : "정말 떠나보낼까? 다시 돌아오지 않는다."], go: ["떠나보낸다", () => { mateLeave(m, "bye"); render(); }], stay: "그만둔다" });
 }
 let mateNameDraft = "";
 function mateRename(id) {
@@ -5992,6 +6000,7 @@ function arrive(id) {
   if (relHeard(id)) return;
   if (relPair(id)) return;
   if (id === "shelter" && from !== "yard" && isNight() && (flags().knockDay ?? -9) + 4 <= dayNo() && Math.random() < 0.2) { knock(); return; }
+  if (dlg || ASK) return;   // 처음 온 곳 설명 같은 대사창이 떠 있으면 전투는 안 붙임 (대사창이 전투 위에 겹쳐 뜨던 것)
   if (Math.random() < p.danger * 0.1 * (isNight() ? 1.7 : 1) * noiseMul(id) * originEnc(id) * (itemCount("군용 쌍안경") ? 0.7 : 1) * Math.max(0.4, 1 - st("sense") * 0.03) * petAmbushMul() * (jhOut() ? 0.6 : 1)) startBattle(id);
 }
 const REGION_REC = { shelter: 0, city: 10, factory: 18, harbor: 26 };   // 지역 권장 공격력
@@ -6036,8 +6045,8 @@ function findPath(from, to) {
   return { path, turns: dist[to] };
 }
 function travelPath(id, force) { if (monster) return; const r = findPath(world.current, id); if (!r) return; if (!force) { const rg = dangerAhead(r.path.slice(1)); if (rg) { warnGo(rg, () => travelPath(id, true)); return; } } const T = tripOf(world.current, id) || { t: r.turns, sta: r.turns * STA_MOVE }, hops = r.path.length - 1, tAll = T.t + (T.t && heavy() ? 1 : 0) + staSlow(T.t); let tDone = 0, sDone = 0;   // 전체 시간·기력을 지나는 곳마다 나눠서 (길에서 막히면 거기까지만)
-  for (let i = 1; i < r.path.length; i++) { const tk = Math.round(tAll * i / hops) - tDone, sk = Math.round(T.sta * i / hops) - sDone; tDone += tk; sDone += sk; passTime(tk); staAdd(-sk); arrive(r.path[i]); if (monster) { log("가는 길에 막혔다."); break; } }
-  if (!monster) log(`${places[world.current].name}${jo(places[world.current].name, "에", "에")} 도착했다. (${dur(tAll)}${T.sta ? ` · 기력 -${T.sta}` : ""})`); selectedPlace = world.current; showScene(world.current); render(); }
+  for (let i = 1; i < r.path.length; i++) { const tk = Math.round(tAll * i / hops) - tDone, sk = Math.round(T.sta * i / hops) - sDone; tDone += tk; sDone += sk; passTime(tk); staAdd(-sk); const d0 = dlg; arrive(r.path[i]); if (monster) { log("가는 길에 막혔다."); break; } if (dlg && dlg !== d0 && i < r.path.length - 1) { log(`${places[world.current].name}에서 걸음을 멈췄다.`); break; } }   // 길에서 사건(대사창)이 생기면 거기서 멈춤 → 다음 곳 전투가 사건 위로 겹치지 않게
+  if (!monster) log(`${places[world.current].name}${jo(places[world.current].name, "에", "에")} 도착했다. (${dur(tDone)}${sDone ? ` · 기력 -${sDone}` : ""})`); selectedPlace = world.current; showScene(world.current); render(); }
 
 // =============== 장소 행동 ===============
 function lootTable(id) { const D = deepRoom(id), deep = D && deepIdx(id) > 0, src = deep && D.items ? D.items : places[id].items, W = deep ? { common: 58, rare: 32, unique: 10 } : { common: 70, rare: 25, unique: 5 };
@@ -8471,6 +8480,7 @@ function loadGame() {
   if (d.world && places[d.world.current]) { world = d.world; if (world.wild) syncWild(); if (!world.pools) world.pools = {}; if (world.chest === undefined) world.chest = null; }
   if (!world.base) world.base = { lv: { workbench: 1, bed: 1 }, farm: [] };
   for (const m of world.mates || []) if (m.fixed === "ts" && m.name === "태식") m.name = MATE_FIXED.ts.name;
+  for (const k of ["n12", "jh", "mech", "ts"]) { const R = (world[k] || null); if (R && R.joined && !(world.mates || []).some(m => m.fixed === k)) R.joined = false; }   // 예전에 떠나보낸 이름 있는 동료: 원래 자리로 돌아와 있게
   for (const m of world.mates || []) { if (m.fixed === "n12" && m.sp === "손재주") m.sp = "전기공"; if (m.fixed === "jh" && m.sp === "싸움") m.sp = "경계병"; }   // 예전 저장: N12·진혁 전용 특기로   // 예전 저장: 태식 → 유태식 (직접 바꾼 이름은 그대로)
   if (!world.base.lv) { // 예전 저장: 지은 시설 목록 → 단계
     const b = world.base.built || []; world.base.lv = { workbench: 1, bed: b.includes("bed2") ? 2 : 1 };
@@ -11588,8 +11598,8 @@ function renderAcctPop() {
   if (keep) { const e2 = [...el.querySelectorAll("input")].find(i => i.placeholder === keep.ph); if (e2) { e2.focus(); try { e2.setSelectionRange(keep.s, keep.s); } catch (e) {} } }
 }
 // 버전: 바뀌면 처음 열 때 업데이트 내용 창. 웹에 올린 판이면 version.json 을 10분마다 보고 새 판이 나오면 새로고침 창
-const GAME_VER = "2026.11.02-8";
-const PATCH_NOTES = ["밤 습격: 발전기가 돌면 밤 10시·1시·4시마다 10% (바리케이드·펫·진혁으로 줄어듦)", "쉘터에 있으면 문 앞 교전(자다가 깨면 잔 만큼만 회복) · 밖에 있으면 수납 상자에서 2개쯤 털림", "N12 전기공 · 진혁 경계병 전용 특기"];
+const GAME_VER = "2026.11.02-9";
+const PATCH_NOTES = ["고침: 폰에서 선택지가 많으면 대사창 위가 잘리던 것 (장면 안에서 스크롤)", "고침: 이동 중 사건(떠돌이 상인 등)이 뜨면 거기서 멈춤 → 다음 곳 전투가 사건 대사창과 겹치지 않게", "N12·진혁·로우·태식은 떠나보내도 하루 뒤 처음 만난 곳에 돌아와 있음 (다시 데려오면 친밀도 -10, 기록 그대로)"];
 function updSeen() {
   const was = storeGet("rpg_ver"); storeSet("rpg_ver", GAME_VER);
   if (was && was !== GAME_VER) askOpen({ title: "업데이트됐어", lines: [`<span class="k">${GAME_VER}</span>`, `<ul class="updList">${PATCH_NOTES.map(t => `<li>${t}</li>`).join("")}</ul>`], go: ["확인", null], stay: "" });
