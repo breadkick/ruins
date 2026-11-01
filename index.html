@@ -11035,8 +11035,10 @@ async function tradeAccept(uid) {
   const r = treqList[uid] || {}, me = cloud.user.uid, D = firebase.database(); treqDrop(uid);
   if (tradeOn()) { log("이미 거래 중이다."); render(); return; }
   if (Date.now() - (r.at || 0) > TRADE_REQ_MS) { log("오래된 신청이라 사라졌다."); render(); return; }
-  const id = [me, uid].sort().join("_"), side = n => ({ n, items: [], caps: 0, ok: false, paid: false, recv: false });
-  try { await D.ref("trade/" + id).set({ a: me, b: uid, at: Date.now(), state: "open", [me]: side(player.name), [uid]: side(r.n || "상대") });
+  const id = [me, uid].sort().join("_"), side = n => ({ n, items: [], caps: 0, ok: false, ready: false, recv: false });
+  try { const old = (await D.ref("trade/" + id).get()).val();
+    if (old && old.state === "pay") { await D.ref("tlive/" + me).set(id); await D.ref("tlive/" + uid).set(id); return; }   // 끝나지 않은 거래가 있으면 덮지 않고 이어서
+    await D.ref("trade/" + id).set({ a: me, b: uid, at: Date.now(), state: "open", [me]: side(player.name), [uid]: side(r.n || "상대") });
     await D.ref("tlive/" + me).set(id); await D.ref("tlive/" + uid).set(id); } catch (e) { console.error(e); log("교환창을 못 열었다."); render(); }
 }
 // 올리기·내리기 (내 쪽만). 바뀌면 둘 다 확인 풀림
@@ -11063,34 +11065,44 @@ function tradeCancel() {
 }
 function tradeHave() { const M = tradeMe(); return (M.items || []).every(([n, k]) => bagHas(n) >= k) && (M.caps || 0) <= player.gold; }
 // 주고받기: 둘 다 확인 → 내 것 빼기 → 상대 것 받기. 받은 표시는 저장에도 (다시 접속해도 두 번 안 받게)
+// 주고받기 (아무도 손해 안 보게): ① 둘 다 확인 → 각자 가방에 정말 있는지 보고 ready (아직 안 뺌). 모자라면 취소 → 아무것도 안 빠짐
+// ② 둘 다 ready → 각자 한 번에 '내 것 빼고 상대 것 넣기' (저장에 표시해서 두 번 안 함) → recv ③ 둘 다 recv → 끝
 async function tradeStep() {
   if (!tradeD || !tradeId || tradeBusy) return; const me = cloud.user.uid, D = firebase.database(), sid = tradeId + ":" + tradeD.at, TG = player.tradeLog || (player.tradeLog = {});
-  if (tradeD.state === "cancel") { const n = tradeOther().n; D.ref("tlive/" + me).remove().catch(() => {}); tradeSub(null); log(`${idEsc(n || "상대")}${jo(n || "상대", "과", "와")}의 거래가 취소됐다.`); render(); return; }
+  const myRef = D.ref(`trade/${tradeId}/${me}`);
+  if (tradeD.state === "cancel") { const n = tradeOther().n; D.ref("tlive/" + me).remove().catch(() => {}); tradeSub(null); log(`${idEsc(n || "상대")}${jo(n || "상대", "과", "와")}의 거래가 취소됐다. 가방은 그대로다.`); render(); return; }
   if (tradeD.state === "done") { D.ref("tlive/" + me).remove().catch(() => {}); tradeSub(null); render(); return; }
   if (tradeD.state !== "pay") return;
   const M = tradeMe(), O = tradeOther();
   tradeBusy = true;
   try {
-    if (!M.paid && !TG[sid + ":paid"]) {
-      if (!tradeHave()) { await tradeRef.transaction(T => { if (T === null) return null; if (T.state !== "pay" || T[me].paid) return; T.state = "cancel"; return T; }); return; }
-      const WD = player.wdur || (player.wdur = {}), wd = {};
-      for (const [n, k] of M.items || []) { removeItemBag(n, k); if (WD[n] && WD[n].length > bagHas(n)) wd[n] = WD[n].splice(0, WD[n].length - bagHas(n)); }
-      player.gold -= M.caps || 0; TG[sid + ":paid"] = 1; saveGame();
-      await firebase.database().ref(`trade/${tradeId}/${me}`).update({ paid: true, wd }); log(`<span class="k">거래: 올린 것을 넘겼다.</span>`);
-    } else if (!M.paid && TG[sid + ":paid"]) await firebase.database().ref(`trade/${tradeId}/${me}`).update({ paid: true });
-    if (O.paid && !M.recv && !TG[sid + ":recv"]) {
-      const WD = player.wdur || (player.wdur = {}), got = [];
-      for (const [n, k] of O.items || []) { addItem(n, k); got.push(`${n} ${k}`); }
-      for (const n in O.wd || {}) (WD[n] || (WD[n] = [])).push(...O.wd[n]);
-      if (O.caps) { player.gold += O.caps; got.push(`${O.caps}캡`); }
-      TG[sid + ":recv"] = 1; saveGame(); await firebase.database().ref(`trade/${tradeId}/${me}`).update({ recv: true });
-      log(`<span class="buff">${idEsc(O.n || "상대")}${jo(O.n || "상대", "과", "와")} 거래했다.${got.length ? ` 받은 것: ${got.join(", ")}` : ""}</span>`); sfx && sfx("buy");
-    } else if (O.paid && !M.recv && TG[sid + ":recv"]) await firebase.database().ref(`trade/${tradeId}/${me}`).update({ recv: true });
+    if (!TG[sid + ":swap"]) {
+      if (!M.ready) {
+        if (!tradeHave()) { await tradeRef.transaction(T => { if (T === null) return null; if (T.state !== "pay" || (T[T.a].ready && T[T.b].ready)) return; T.state = "cancel"; return T; }); return; }
+        await myRef.update({ ready: true });
+      } else if (O.ready) {   // 둘 다 준비됨 → 바꾸기 (한 번만)
+        const WD = player.wdur || (player.wdur = {}), wd = {}, gave = [], got = [];
+        for (const [n, k] of M.items || []) { const t = Math.min(k, bagHas(n)); if (t > 0) removeItemBag(n, t); gave.push(`${n} ${k}`); if (WD[n] && WD[n].length > bagHas(n)) wd[n] = WD[n].splice(0, WD[n].length - bagHas(n)); }
+        if (M.caps) { player.gold = Math.max(0, player.gold - M.caps); gave.push(`${M.caps}캡`); }
+        for (const [n, k] of O.items || []) { addItem(n, k); got.push(`${n} ${k}`); }
+        if (O.caps) { player.gold += O.caps; got.push(`${O.caps}캡`); }
+        TG[sid + ":swap"] = 1; const H = player.tradeHist || (player.tradeHist = []); H.unshift({ at: Date.now(), who: O.n || "?", gave, got }); H.splice(10);
+        saveGame(); try { cloudFlush && cloudFlush(); } catch (e) {}
+        await myRef.update({ recv: true, wd });
+        log(`<span class="buff">${idEsc(O.n || "상대")}${jo(O.n || "상대", "과", "와")} 거래했다.${got.length ? ` 받은 것: ${got.join(", ")}` : ""}${gave.length ? ` · 준 것: ${gave.join(", ")}` : ""}</span>`); sfx && sfx("buy");
+      }
+    } else {
+      if (!M.recv) await myRef.update({ recv: true });
+      if (O.wd && !TG[sid + ":wd"]) { const WD = player.wdur || (player.wdur = {}); for (const n in O.wd) (WD[n] || (WD[n] = [])).push(...O.wd[n]); TG[sid + ":wd"] = 1; }
+    }
     const T = (await tradeRef.get()).val();
-    if (T && T[T.a].recv && T[T.b].recv) { await tradeRef.transaction(X => { if (X === null) return null; X.state = "done"; return X; }); }
-    if (T && T.state === "done" || (T && T[T.a].recv && T[T.b].recv)) { await D.ref("tlive/" + me).remove(); setTimeout(() => { D.ref("trade/" + tradeIdOf(T)).transaction(X => X === null || X.state === "done" ? null : undefined).catch(() => {}); }, 3000); for (const k in TG) if (k.startsWith(tradeIdOf(T) + ":") && !k.startsWith(sid)) delete TG[k]; tradeSub(null); render(); }
+    if (T && T[T.a] && T[T.b] && T[T.a].recv && T[T.b].recv) {
+      await tradeRef.transaction(X => { if (X === null) return null; X.state = "done"; return X; });
+      await D.ref("tlive/" + me).remove(); setTimeout(() => { D.ref("trade/" + tradeIdOf(T)).transaction(X => X === null || X.state === "done" ? null : undefined).catch(() => {}); }, 3000);
+      for (const k in TG) if (k.startsWith(tradeIdOf(T) + ":") && !k.startsWith(sid)) delete TG[k]; tradeSub(null); render();
+    }
   } catch (e) { console.error(e); } finally { tradeBusy = false; }
-  if (tradeD && tradeD.state === "pay") setTimeout(tradeStep, 600);
+  if (tradeD && tradeD.state === "pay") setTimeout(tradeStep, 700);
 }
 function tradeIdOf(T) { return [T.a, T.b].sort().join("_"); }
 // 교환창
@@ -11109,7 +11121,7 @@ function renderTrade() {
     <section class="trSide trMine"><div class="trHead"><span>나</span><b>${idEsc(player.name)}</b></div><div class="trSlots">${slots(mineL, true)}</div>
       <div class="trCaps">캡 <input class="trCapIn" type="number" min="0" max="${player.gold}" value="${tradeCapsDraft !== "" ? tradeCapsDraft : M.caps || 0}" ${pay ? "disabled" : ""} oninput="tradeCapsDraft = this.value" onchange="tradeCaps(this.value)" onkeydown="if (event.key === 'Enter') this.blur()" aria-label="올릴 캡"> <small class="k">/ ${player.gold}</small></div>
       <div class="trOk ${M.ok ? "on" : ""}">내 확인 ${M.ok ? "✓ 확인함" : "· 아직"}</div></section></div>
-    ${pay ? `<p class="trNote buff">둘 다 확인했다. 주고받는 중…</p>` : `<div class="trBag"><div class="trBagHead">내 가방 <small class="k">누르면 1개씩 올림 · 올린 칸을 누르면 1개 내림</small></div><div class="trBagList">${bag.length ? bag.map(n => `<div class="trBagRow${left(n) > 0 ? "" : " out"}"><button onclick="tradeAdd('${n.replace(/'/g, "\\'")}')" ${left(n) > 0 ? "" : "disabled"}>${ico(n)}${idEsc(n)} <small>${left(n)}</small></button><button class="trAll" onclick="tradeAddAll('${n.replace(/'/g, "\\'")}')" ${left(n) > 0 ? "" : "disabled"} title="전부 올림">전부</button></div>`).join("") : `<p class="empty">가방이 비었다.</p>`}</div></div>
+    ${pay ? `<p class="trNote buff">둘 다 확인했다. 주고받는 중… (창을 닫거나 새로고침해도 다시 접속하면 이어서 끝나)</p>` : `<div class="trBag"><div class="trBagHead">내 가방 <small class="k">누르면 1개씩 올림 · 올린 칸을 누르면 1개 내림</small></div><div class="trBagList">${bag.length ? bag.map(n => `<div class="trBagRow${left(n) > 0 ? "" : " out"}"><button onclick="tradeAdd('${n.replace(/'/g, "\\'")}')" ${left(n) > 0 ? "" : "disabled"}>${ico(n)}${idEsc(n)} <small>${left(n)}</small></button><button class="trAll" onclick="tradeAddAll('${n.replace(/'/g, "\\'")}')" ${left(n) > 0 ? "" : "disabled"} title="전부 올림">전부</button></div>`).join("") : `<p class="empty">가방이 비었다.</p>`}</div></div>
     <p class="trNote k">물건을 올리거나 내리면 둘 다 확인이 풀려. 둘 다 확인하면 바로 거래돼.</p>`}
     ${tradeMsg ? `<p class="trNote danger">${tradeMsg}</p>` : ""}<div class="trBtns"><button class="trGo${M.ok ? " on" : ""}" onclick="tradeOk()" ${pay ? "disabled" : ""}>${M.ok ? "확인 풀기" : "확인"}</button><button onclick="tradeCancel()" ${pay ? "disabled" : ""}>거래 취소</button></div></div>`;
 }
@@ -11541,8 +11553,8 @@ function renderAcctPop() {
   if (keep) { const e2 = [...el.querySelectorAll("input")].find(i => i.placeholder === keep.ph); if (e2) { e2.focus(); try { e2.setSelectionRange(keep.s, keep.s); } catch (e) {} } }
 }
 // 버전: 바뀌면 처음 열 때 업데이트 내용 창. 웹에 올린 판이면 version.json 을 10분마다 보고 새 판이 나오면 새로고침 창
-const GAME_VER = "2026.11.02-5";
-const PATCH_NOTES = ["고침: 동료 질문에 답하면 대답 대사만 뜨게 (친밀도·선물 글이 대사창에 또 뜨던 것)", "고침: 교환창 '확인'이 가끔 안 눌리던 것", "보온병으로 물을 뜨면 바로 깨끗한 물 3개 (요리에 바로 씀)"];
+const GAME_VER = "2026.11.02-6";
+const PATCH_NOTES = ["거래 고침: 주고받는 도중 한쪽이 모자라서 취소돼도 물건이 사라지지 않게 (둘 다 준비된 뒤 한 번에 바꿈)", "거래 고침: 끝나지 않은 거래를 새 거래가 덮어쓰지 않게 · 새로고침해도 이어서 끝남", "거래 기록에 준 것·받은 것이 같이 남음"];
 function updSeen() {
   const was = storeGet("rpg_ver"); storeSet("rpg_ver", GAME_VER);
   if (was && was !== GAME_VER) askOpen({ title: "업데이트됐어", lines: [`<span class="k">${GAME_VER}</span>`, `<ul class="updList">${PATCH_NOTES.map(t => `<li>${t}</li>`).join("")}</ul>`], go: ["확인", null], stay: "" });
