@@ -93,6 +93,8 @@
   #log .lNote { color: var(--ink-dim); } #log .lDot { color: var(--ink-dim); }
   #sceneWorld .prop[data-fx="fire"] { animation: drumFlick 0.45s steps(2) infinite alternate; } @keyframes drumFlick { from { filter: brightness(1) drop-shadow(0 0 2px rgba(255, 150, 60, 0.45)); } to { filter: brightness(1.15) drop-shadow(0 0 4px rgba(255, 170, 70, 0.85)); } } @media (prefers-reduced-motion: reduce) { #sceneWorld .prop[data-fx="fire"] { animation: none; } }
   #sceneWorld > .lampGlow { position: absolute; width: 120px; height: 120px; pointer-events: none; mix-blend-mode: screen; background: radial-gradient(circle, rgba(255,220,160,0.75) 0, rgba(255,190,105,0.34) 11px, rgba(255,160,70,0.1) 34px, rgba(255,150,60,0) 58px); }
+  #sceneWorld > .genTag { z-index: 960; } #sceneWorld > .genTag.on { color: #ffd84a; } #sceneWorld > .genTag.dry { color: #c0574a; }
+  #sceneWorld > .lampGlow.ceil { width: 180px; height: 180px; opacity: 0.55; }
   #sceneWorld.night.lamp > .lampGlow, #sceneWorld.night.lamp > .talkHint, #sceneWorld.night.lamp > .exitArrow { filter: none; }
   #sceneWorld > .tvGlow, #sceneWorld.night > .tvGlow, #sceneWorld.night.lamp > .tvGlow, #sceneWorld.night.lit > .tvGlow { position: absolute; width: 12px; height: 11px; pointer-events: none; filter: none; mix-blend-mode: screen; background: radial-gradient(ellipse, rgba(160,210,255,0.75), rgba(120,170,255,0.25) 70%, rgba(120,170,255,0)); animation: tvFlick 0.7s steps(1) infinite; }
   @keyframes tvFlick { 0% { opacity: 0.9; } 30% { opacity: 0.5; } 55% { opacity: 1; } 80% { opacity: 0.7; } }
@@ -111,11 +113,15 @@
   /* =============== 터치 조작 (휴대폰) =============== */
   #pad { display: none; }
   body.touch #pad { display: block; position: absolute; left: 0; right: 0; bottom: 0; height: 0; z-index: 3; }
-  body.touch #pad.hide { display: none; }
+  body.touch #pad.hide { display: none; } body.touch #pad.decoA .dpad { display: none; } body.touch #pad.decoA .abtn { animation: decoBlink 1s steps(2) infinite; }
   /* 보통 십자 패드를 45도 돌림: 위 ↗ = ↑(오른쪽 위), 오른쪽 ↘, 아래 ↙, 왼쪽 ↖ — 장면의 걷는 방향과 같음 */
   .dpad { position: absolute; left: 16px; bottom: 16px; width: 92px; height: 92px; opacity: 0.9; display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); gap: 3px; transform: rotate(45deg); }
   .dpad button, .abtn { padding: 0; font-size: 15px; color: var(--hazard); background: rgba(20, 17, 13, 0.72); border: 2px solid #5a4a36; touch-action: none; user-select: none; -webkit-user-select: none; }
   .dpad button:active, .dpad button.down, .abtn:active, .abtn.down { background: rgba(201, 162, 39, 0.35); }
+  #sceneWorld .decoCell { position: absolute; width: 32px; height: 16px; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); z-index: 2; pointer-events: none; animation: decoBlink 1s steps(2) infinite; }
+  #sceneWorld .decoCell.ok { background: rgba(201, 162, 39, 0.55); } #sceneWorld .decoCell.bad { background: rgba(190, 60, 50, 0.6); }
+  #sceneWorld .obj[data-ghost] { opacity: 0.6; pointer-events: none; } #sceneWorld .obj[data-ghost][data-bad] { opacity: 0.4; filter: sepia(1) saturate(4) hue-rotate(-30deg); }
+  @keyframes decoBlink { 50% { opacity: 0.55; } } @media (prefers-reduced-motion: reduce) { #sceneWorld .decoCell { animation: none; } }
   .abtn { position: absolute; right: 16px; bottom: 22px; width: 52px; height: 52px; border-radius: 50%; font-size: 19px; opacity: 0.9; }
   #sceneBar .stClock { display: none; }
   #sceneTime .tSoon .warn { color: var(--hazard); }
@@ -2749,7 +2755,7 @@ function facLong(k) { return k === "workbench" || (k === "bed" && facLv("bed") >
 function longTiles(x, y, long, f) { if (!long) return [[x, y]]; const alongX = (long === "x") !== !!f; return alongX ? [[x, y], [x + 1, y]] : [[x, y], [x, y + 1]]; }
 function facFlip(k) { return !!(world.base.flip && world.base.flip[k]); }
 function facTiles(k) { const [x, y] = basePos(k); return longTiles(x, y, facLong(k), facFlip(k)); }
-let deco = { on: false, tool: "move", sel: null, place: null, floor: 1, paper: 1 }; // sel: "workbench" 같은 시설 이름 또는 "d번호"(장식 가구)
+let deco = { on: false, tool: "move", sel: null, place: null, floor: 1, paper: 1, prev: null };   // prev: 가구 놓을/옮길 미리보기 칸 {x, y} (PC 더블클릭 · 폰 A 단추로 확정) // sel: "workbench" 같은 시설 이름 또는 "d번호"(장식 가구)
 function basePos(k) { return (world.base.pos && world.base.pos[k]) || BASE_POS[k]; }
 function furnTiles(d) { return longTiles(d.x, d.y, FURNITURE[d.n].long, d.f); }
 function facPlaced(k) { return k === "workbench" || k === "bed" || hasFacility(k); }
@@ -2939,11 +2945,11 @@ function shelterSpot(id) {
   return { x: 3, y: 3 };
 }
 function decoActive() { return deco.on && world.current === "shelter" && selectedPlace === "shelter" && view === "scene"; }
-function startDeco() { if (world.current !== "shelter" || monster) { log("쉘터 방 안에서 꾸밀 수 있어."); render(); return; } deco.on = true; deco.sel = deco.place = null; tab = "base"; selectedPlace = "shelter"; showScene("shelter"); render(); }
-function endDeco() { deco.on = false; deco.sel = deco.place = null; render(); }
-function decoTool(t) { deco.tool = t; deco.sel = deco.place = null; render(); }
-function decoPick(key) { deco.tool = "move"; deco.place = null; deco.sel = deco.sel === key ? null : key; render(); }
-function startPlace(name) { if (world.current !== "shelter") { log("가구는 쉘터 방 안에서 놓을 수 있어."); render(); return; } startDeco(); deco.tool = "move"; deco.place = name; render(); }
+function startDeco() { if (world.current !== "shelter" || monster) { log("쉘터 방 안에서 꾸밀 수 있어."); render(); return; } deco.on = true; deco.sel = deco.place = deco.prev = null; tab = "base"; selectedPlace = "shelter"; showScene("shelter"); render(); }
+function endDeco() { deco.on = false; deco.sel = deco.place = deco.prev = null; render(); }
+function decoTool(t) { deco.tool = t; deco.sel = deco.place = deco.prev = null; render(); }
+function decoPick(key) { deco.tool = "move"; deco.place = deco.prev = null; deco.sel = deco.sel === key ? null : key; render(); }
+function startPlace(name) { if (world.current !== "shelter") { log("가구는 쉘터 방 안에서 놓을 수 있어."); render(); return; } startDeco(); deco.tool = "move"; deco.place = name; deco.prev = null; render(); }
 function decoClick(ev) {
   const r = rectOf(document.getElementById("sceneWorld")), lx = (ev.clientX / UIZ - r.left) / SCENE_SCALE, ly = (ev.clientY / UIZ - r.top) / SCENE_SCALE;
   const w = ev.target.closest && ev.target.closest("[data-wall]");
@@ -2951,7 +2957,20 @@ function decoClick(ev) {
   const a = lx / 16, b = (ly - 8) / 8, x = Math.round((a + b) / 2), y = Math.round((b - a) / 2);   // 누른 곳의 바닥 칸
   if (x < 0 || y < 0 || x >= SCENE || y >= SCENE) return;
   if (deco.tool === "floor") { const t = RM().tiles || Array(SCENE * SCENE).fill(null); t[y * SCENE + x] = deco.floor; RM().tiles = t; render(); return; }
-  if (deco.place) placeFurn(x, y); else if (deco.sel) moveFurn(x, y);
+  if (deco.place || deco.sel) {   // 바로 놓지 않고 미리보기만. 확정은 decoConfirm (PC: 같은 칸 빠르게 두 번 = 더블클릭 · 폰: A 단추)
+    const q = deco.prev, now = Date.now(), dbl = !TOUCH && q && q.x === x && q.y === y && now - (decoClick.at || 0) < 450; decoClick.at = now;
+    if (dbl) { decoClick.at = 0; decoConfirm(); return; }
+    deco.prev = { x, y }; render(); }
+}
+const DECO_OK_TXT = () => TOUCH ? "A 단추" : "더블클릭";
+function decoConfirm() { const q = deco.prev; if (!q || !decoActive() || deco.tool !== "move") return false;
+  if (deco.place) placeFurn(q.x, q.y); else if (deco.sel) moveFurn(q.x, q.y); else return false; return true; }
+function decoGhost() {   // 미리보기: [그림 이름, 칸들, 놓을 수 있나, 가구 그림인가, 뒤집힘]
+  const q = deco.prev; if (!q || deco.tool !== "move") return null;
+  if (deco.place) { const nd = { n: deco.place, x: q.x, y: q.y, f: false }, F = FURNITURE[deco.place]; return F && [F.art || F.prop, furnTiles(nd), canSit(nd), !!F.art, false]; }
+  const key = deco.sel; if (!key) return null;
+  if (key[0] === "d") { const od = RM().decor[+key.slice(1)]; if (!od) return null; const nd = { ...od, x: q.x, y: q.y }, F = FURNITURE[od.n]; return [F.art || F.prop, furnTiles(nd), canSit(nd, key), !!F.art, !!od.f]; }
+  const tl = longTiles(q.x, q.y, facLong(key), facFlip(key)); return [facArt(key), tl, tl.every(([a, b]) => a >= 0 && b >= 0 && a < SCENE && b < SCENE) && !tl.some(([a, b]) => roomBusy(a, b, key)), true, facFlip(key)];
 }
 function moveFurn(x, y) {
   const key = deco.sel;
@@ -2964,7 +2983,7 @@ function moveFurn(x, y) {
     if (longTiles(x, y, facLong(key), facFlip(key)).some(([a, b]) => roomBusy(a, b, key))) { log("거기엔 놓을 수 없다."); render(); return; }
     world.base.pos = { ...(world.base.pos || {}), [key]: [x, y] };
   }
-  log(`${furnName(key)}${jo(furnName(key), "을", "를")} 옮겼다.`); render();
+  deco.prev = null; log(`${furnName(key)}${jo(furnName(key), "을", "를")} 옮겼다.`); render();
 }
 function flipFurn() {
   const key = deco.sel; if (!key) return;
@@ -3002,7 +3021,7 @@ function placeFurn(x, y) {
   const name = deco.place; if (!name || itemCount(name) < 1) { deco.place = null; render(); return; }
   const nd = { n: name, x, y, f: false };
   if (!canSit(nd)) { log("거기엔 놓을 수 없다."); render(); return; }
-  removeItem(name); RM().decor.push(nd); deco.place = null; deco.sel = "d" + (RM().decor.length - 1);
+  removeItem(name); RM().decor.push(nd); deco.place = deco.prev = null; deco.sel = "d" + (RM().decor.length - 1);
   log(`${name}${jo(name, "을", "를")} 방에 놓았다.`); render();
 }
 function fillFloor() { RM().floor = deco.floor; RM().tiles = null; log(`바닥을 ${INDOOR_FLOORS[deco.floor][1]}${jo(INDOOR_FLOORS[deco.floor][1], "으로", "로")} 깔았다.`); render(); }
@@ -3016,8 +3035,8 @@ function renderDeco() {
   const tb = (t, label) => `<button class="tool${deco.tool === t ? " on" : ""}" onclick="decoTool('${t}')">${label}</button>`;
   h += `<div class="tools">${tb("move", "가구")}${tb("floor", "바닥")}${tb("paper", "벽지")}<button class="tool end" onclick="endDeco()">끝내기</button></div>`;
   if (deco.tool === "move") {
-    if (deco.place) h += `<p class="k">${ico(deco.place)}${deco.place} · 놓을 칸을 장면에서 누르세요. <button onclick="deco.place=null; render()">취소</button></p>`;
-    else if (deco.sel) h += `<p class="k">${furnName(deco.sel)} 고름 · 옮길 빈 칸을 장면에서 누르세요.</p><p><button onclick="flipFurn()">돌리기</button> ${deco.sel[0] === "d" ? `<button onclick="pickUpFurn()">가방에 넣기</button> ` : ""}${deco.sel[0] === "d" && FURNITURE[furnName(deco.sel)].fix ? `<button onclick="repairFurn()" ${canAfford(FIX_COST) ? "" : "disabled"}>고치기 · ${costText(FIX_COST)}</button> ` : ""}<button onclick="deco.sel=null; render()">고르기 취소</button></p>`;
+    if (deco.place) h += `<p class="k">${ico(deco.place)}${deco.place} · ${deco.prev ? `미리보기 중. 맞으면 ${DECO_OK_TXT()}, 아니면 다른 칸을 누르세요.` : "놓을 칸을 장면에서 누르면 미리 보여요."}</p><p>${deco.prev ? `<button onclick="decoConfirm()" ${decoGhost() && decoGhost()[2] ? "" : "disabled"}>여기에 놓기</button> ` : ""}<button onclick="deco.place=null; deco.prev=null; render()">취소</button></p>`;
+    else if (deco.sel) h += `<p class="k">${furnName(deco.sel)} 고름 · ${deco.prev ? `미리보기 중. 맞으면 ${DECO_OK_TXT()}, 아니면 다른 칸을 누르세요.` : "옮길 칸을 장면에서 누르면 미리 보여요."}</p><p>${deco.prev ? `<button onclick="decoConfirm()" ${decoGhost() && decoGhost()[2] ? "" : "disabled"}>여기로 옮기기</button> ` : ""}<button onclick="flipFurn()">돌리기</button> ${deco.sel[0] === "d" ? `<button onclick="pickUpFurn()">가방에 넣기</button> ` : ""}${deco.sel[0] === "d" && FURNITURE[furnName(deco.sel)].fix ? `<button onclick="repairFurn()" ${canAfford(FIX_COST) ? "" : "disabled"}>고치기 · ${costText(FIX_COST)}</button> ` : ""}<button onclick="deco.sel=null; deco.prev=null; render()">고르기 취소</button></p>`;
     else h += `<p class="k">장면에서 가구를 누르면 고르고, 빈 칸을 누르면 그리로 옮겨요.</p>`;
     const bag = Object.keys(FURNITURE).filter(n => itemCount(n) > 0);
     h += `<div class="sub">가진 가구</div>` + (bag.length ? bag.map(n => `<div class="item"><span>${ico(n)}${n}<small>${itemCount(n)}개</small></span><span class="btns"><button onclick="startPlace('${n}')">놓기</button></span></div>`).join("") : `<p class="empty">아직 없음. 장소를 뒤지면 가구가 나와요.</p>`);
@@ -3175,6 +3194,12 @@ function drawScene(id) {
     (RM().decor || []).forEach((d, i) => { const tl = furnTiles(d), F = FURNITURE[d.n], si = F.top ? surfaceAt(d.x, d.y) : -1, sd = si >= 0 ? RM().decor[si] : null;
       const up = sd ? { dy: -surfElev(sd), z: Math.max(...furnTiles(sd).map(([a, b]) => a + b)) * 2 + 2 } : {};
       putProp(F.art || F.prop, tl, { furn: !!F.art, kind: "furn", flip: d.f, walk: !!F.flat, z: F.flat ? 1 : undefined, ...up, each: tl.map(() => ({ di: i, flat: !!F.flat })), attr: mk("d" + i) + (d.n === "발전기" && powered() ? " data-run" : "") }); });
+    const G = decoActive() && decoGhost();
+    if (G) { G[1].forEach(([x, y]) => { const q = isoPos(x, y); html += `<div class="decoCell ${G[2] ? "ok" : "bad"}" style="left:${q.left}px;top:${q.top}px"></div>`; });
+      if (G[0]) putProp(G[0], G[1], { furn: G[3], kind: null, flip: G[4], z: 950, attr: ` data-ghost${G[2] ? "" : " data-bad"}` }); }
+    if (id === world.current && powered() && isNight()) { const q = isoPos(c - 1, c - 1); html += `<div class="lampGlow ceil" style="left:${q.left + 16 - 90}px;top:${q.top - 70}px;z-index:939"></div>`; }
+    if (id === world.current) (RM().decor || []).forEach(d => { if (d.n !== "발전기") return; const q = isoPos(d.x, d.y), P = world.power || { fuel: 0, left: 0 };
+      html += `<div class="plotTag genTag${powered() ? " on" : P.fuel || P.left > 0 ? "" : " dry"}" style="left:${q.left + 16}px;top:${q.top - 22}px" title="발전기 · ${genStatus()}">${powered() ? "⚡" : "⛽"} ${P.fuel}/${fuelCap()}</div>`; });
     // 전기가 들어오면: 밤에 전등 둘레가 따뜻하게 밝고, 텔레비전 화면이 깜빡임
     if (id === world.current && powered()) (RM().decor || []).forEach(d => {
       if (d.n !== "스탠드 전등" && d.n !== "텔레비전") return;
@@ -3371,7 +3396,7 @@ function drawScene(id) {
   }
   if (walker && walker.mark && id === world.current) { const m = isoPos(walker.mark[0], walker.mark[1]); html += `<div class="walkMark" style="left:${m.left + 5}px;top:${m.top - 3}px"></div>`; }
   // 밤에 랜턴을 들고 있으면 캐릭터 둘레만 밝게
-  const lampRoom = id === world.current && id === "shelter" && isNight() && powered() && (RM().decor || []).some(d => d.n === "스탠드 전등");   // 전등 켠 방은 랜턴 없이도 밝음
+  const lampRoom = id === world.current && id === "shelter" && isNight() && powered();   // 전기가 들어오면 쉘터 방마다 천장 전구가 켜짐 (스탠드 전등은 둘레가 더 따뜻하게)
   const lit = id === world.current && isNight() && lanternLit() && !lampRoom;
   if (lit) {
     const pos = isoPos(heroPos.x, heroPos.y), lx = pos.left + 16, ly = pos.top - 4;
@@ -4273,7 +4298,7 @@ function drillOk(k) {
 function drill(k, step = 1, what) {
   if (!drillOk(k)) return;
   const full0 = fillLeft(); passTime(DRILL_TURNS); if (isBody(k) && !full0) player.hunger = Math.max(0, player.hunger - DRILL_FOOD); if (isBody(k)) staAdd(-10);
-  const D = player.drill || (player.drill = {}), need = drillNeed(k), S = STATS[k], txt = what || S.drill; D[k] = drillCount(k) + step;
+  const D = player.drill || (player.drill = {}), need = drillNeed(k), S = STATS[k], zap = atBase() && powered() && Math.random() < 0.25, txt = (what || S.drill) + (zap ? " (불빛 아래 집중이 잘 됐다 ×2)" : ""); D[k] = drillCount(k) + step * (zap ? 2 : 1);
   if (D[k] >= need) { D[k] -= need; statApply(k); log(`<span class="buff">${txt}. ${S.name}${jo(S.name, "이", "가")} 늘었다! ${S.name} ${st(k)} (${S.fx(1)})</span>`); }
   else log(`${txt}. ${S.name} 단련 ${D[k]}/${need} (${dur(DRILL_TURNS)})`);
   render();
@@ -5992,14 +6017,14 @@ function dive()   { harvest("잠수", 0.5, 0.03, "잠수"); }
 function mine()   { harvest("채광", 0.55, 0.03, "채광"); }
 function restNote() { return `HP ${Math.round((0.3 + (atBase() ? roomSet("living") : 0)) * 100)}% · 기력 +${atBase() ? 10 : 5} · ${dur(3)}`; }
 function rest()   { if (monster) return; passTime(3); staAdd(atBase() ? 10 : 5); const lv = atBase() ? roomSet("living") : 0; sanAdd(atBase() ? 8 + Math.round(lv * 20) : 3); player.hp = Math.min(player.maxHp, player.hp + Math.floor(player.maxHp * (0.3 + lv))); log(`잠시 쉬었다. HP 회복 · 기력 +${atBase() ? 10 : 5}${lv ? " (거실 덕분에 더)" : ""} (${dur(3)})`); if (Math.random() < places[world.current].danger * 0.08) startBattle(world.current); render(); }
-function sleepTurns() { return (8 - [0, 2, 3, 4][facLv("barricade")] - (facLv("bed") >= 2 ? 2 : 0)) * HR; }
+function sleepTurns() { return Math.max(2, 8 - [0, 2, 3, 4][facLv("barricade")] - (facLv("bed") >= 2 ? 2 : 0) - (powered() ? 1 : 0)) * HR; }
 function sleep()  { if (monster) return; const t = sleepTurns(); sfx("sleep");
   if (powered() && (isNight() || turn % DAY_LEN + t >= NIGHT_START) && Math.random() < nightRaidChance()) {   // 자다가 깸: 반만 자고 반만 회복
     passTime(Math.ceil(t / 2)); player.hp += Math.floor((player.maxHp - player.hp) / 2); sanAdd(8); player.sta = sta() + Math.floor((staMax() - sta()) / 2); log(`<span class="danger">쾅쾅. 잠결에 문 두드리는 소리.</span>`); nightRaid(); render(); return; }
   passTime(t);
   if (player.hunger <= 0) { player.hp += Math.floor((player.maxHp - player.hp) / 2); player.sta = sta() + Math.floor((staMax() - sta()) / 2); log(`<span class="danger">배가 고파 잠을 설쳤다.</span> HP·기력 절반만 회복 (${dur(t)})`); }   // 굶주리면 반만
   else { player.hp = player.maxHp; player.sta = staMax(); log(`${facName("bed")}에서 잤다. HP·기력 완전 회복 (${dur(t)})`); }
-  sanAdd(25 + facLv("bed") * 5); const bl = facLv("bed"); if (bl >= 2) player.buff = bl >= 3 ? { atk: 3, turns: 15 } : { atk: 2, turns: 10 }; knockGift(); render(); }
+  sanAdd(25 + facLv("bed") * 5 + (powered() ? 10 : 0)); const bl = facLv("bed"); if (bl >= 2) player.buff = bl >= 3 ? { atk: 3, turns: 15 } : { atk: 2, turns: 10 }; knockGift(); render(); }
 function sleepHint() { return player.hunger <= Math.ceil(sleepTurns() / HR) ? `배고파서 절반만 회복 · ${dur(sleepTurns())}` : `HP·기력 완전 회복 · ${dur(sleepTurns())}`; }
 function raid()   { if (monster) return; const p = places[world.current]; tick(); log(`<span class="danger">${p.name}에 쳐들어갔다.</span>`); monster = makeMonster(p.boss, world.current, true); log(`<span class="danger">${monster.name}${jo(monster.name, "이", "가")} 막아선다.</span>`); bOpen(); render(); }
 function firstAid() {
@@ -6948,7 +6973,7 @@ function sendKey(k) { document.dispatchEvent(new KeyboardEvent("keydown", { key:
 })();
 function renderPad() {
   const pad = document.getElementById("pad");
-  pad.classList.toggle("hide", view !== "scene" || selectedPlace !== world.current || !!monster || B.open || cards.open || creating || !!pix || decoActive());
+  pad.classList.toggle("hide", view !== "scene" || selectedPlace !== world.current || !!monster || B.open || cards.open || creating || !!pix || (decoActive() && !deco.prev)); pad.classList.toggle("decoA", decoActive());   // 꾸미기: 미리보기 중엔 A 단추만 (확정)
 }
 // 눌러서 걷기: 막힌 칸(물·소품)을 피해 가장 짧은 길로 한 칸씩
 let walker = null;
@@ -7062,6 +7087,7 @@ function furnTalk(d) {
   if (b === "radio" && clean) ch.push(["배터리를 넣는다", radioLoad, itemCount("배터리") ? `가방 ${itemCount("배터리")}개 · 1개에 3번` : "배터리 없음"]);
   if (b === "barrel") ch.push(["빗물을 받는다", () => { if (!daily("barrel")) { log("통이 비었다. 내일 다시 차겠지."); render(); return; } tick(); gain("깨끗한 물", 2); log("빗물을 걸러 받았다. 깨끗한 물 +2"); render(); }, "깨끗한 물 2", "barrel"]);
   if (b === "burner" && !monster) ch.push(["요리한다", openCook, `취사 ${RANKS[rankOf("취사")]}`]);
+  if (b === "generator" && !monster && fuelCap()) ch.push(["기름을 붓는다", pourFuel, `가방 ${itemCount("기름통")}통 · 쌓인 기름 ${PW().fuel}/${fuelCap()}`]);
   if (b === "generator" && clean && !monster) ch.push(powered() ? ["발전기를 끈다", genOff, "조용해진다"] : ["발전기를 켠다", genOn, PW().fuel || PW().left > 0 ? "하루에 기름 한 통" : "기름 없음"]);
   if ((b === "generator" && clean || b === "oil") && !monster) ch.push(["기름을 붓는다", pourFuel, `가방 ${itemCount("기름통")}개 · ${PW().fuel}/${fuelCap()}`]);
   if ((b === "range" || b === "prep" || b === "counter" || (b === "microwave" && powered())) && !monster) ch.push(["요리한다", openCook, `취사 ${RANKS[rankOf("취사")]}`]);
@@ -7149,6 +7175,7 @@ function sanTick() {
     if (lanternLit()) { if (turn % (2 * HR) === 0) sanAdd(-1); }
     else { sanAdd(-2 / HR); const n = dayNo(); if (world.darkNight !== n) { world.darkNight = n; log(`<span class="danger">${player.lantern ? "랜턴 불빛 없이" : "불빛 하나 없이"} 어둠 속을 걷는다. 숨소리가 크게 들린다.</span>`); } }
   }
+  if (atBase() && powered() && isNight() && turn % HR === 0) sanAdd(cleanIn("스탠드 전등") ? 2 : 1);   // 불 켜진 쉘터: 밤에 마음이 놓임
   if (player.hunger <= 0 && turn % HR === 0) sanAdd(-1);
   if (san() <= 0 && player.hp > 1 && turn % HR === 0) player.hp -= 1;
 }
@@ -7156,7 +7183,8 @@ const MON_FEAR = [1, 2, 4, 6, 10];   // 마주칠 때 깎이는 정신력 (들�
 function originEnc(id) { return 1; }   // (예전 잠수부: 물가에서 덜 마주침 → 어부 이점으로 바뀌어 없앰)
 // =============== 전기 (발전기 · 기름) ===============
 // 기름통을 쉘터에 부어 두면(발전기 탱크 2 + 기름 드럼통마다 5, 녹슨 드럼통은 2) 발전기가 하루(DAY_LEN턴)에 한 통씩 씀
-const ELEC = { "스탠드 전등": "밤에 그 방이 밝아짐", "전동 공구대": "무기 강화 성공률 +10%", "텔레비전": "하루 한 번 옛날 방송 · 거실 세트에 침", "냉장고": "요리할 때 20% 확률로 하나 더 (큰 냉장고도)", "전자레인지": "불이 없어도 불 요리 가능" };
+const ELEC_BASE = ["밤에 쉘터 방마다 불이 켜짐 · 밤에도 정신력이 조금씩 차오름", "잠: 정신력 +10 더 · 1시간 덜 잠", "단련: 4번에 1번꼴로 두 배로 늘어남", "요리: 15% 빨라짐 (전등 아래 손이 빨라짐)"];
+const ELEC = { "스탠드 전등": "방이 더 따뜻하게 밝음 · 밤 정신력 두 배로 참", "전동 공구대": "무기 강화 성공률 +15%", "텔레비전": "하루 한 번 옛날 방송 · 거실 세트에 침", "냉장고": "요리할 때 30% 확률로 하나 더 (큰 냉장고도)", "전자레인지": "불이 없어도 불 요리 가능" };
 function PW() { return world.power || (world.power = { on: false, fuel: 0, left: 0 }); }
 function allDecor() { return [world.base, ...Object.values(world.base.rooms || {})].flatMap(r => r.decor || []); }
 function cleanIn(n) { return allDecor().some(d => d.n === n || COUNTS_AS[d.n] === n); }        // 깨끗한 것만 (낡은 건 고장)
@@ -7218,7 +7246,7 @@ function renderPower() {
   const on = powered(), bag = itemCount("기름통");
   h += `<div class="item"><span>${ico("발전기")}발전기 · ${on ? `<span class="buff">돌아가는 중</span>` : "꺼짐"}<small>${genStatus()} · 하루에 한 통</small><small class="k">가방에 기름통 ${bag}개${on && isNight() ? ` · <span class="danger">밤이라 소리가 퍼진다</span>` : " · 밤에 돌리면 쉘터 근처가 시끄러워진다"}</small></span>`
      + `<span class="btns"><button onclick="${on ? "genOff()" : "genOn()"}" ${monster ? "disabled" : ""}>${on ? "끄기" : "켜기"}</button><button onclick="pourFuel()" ${bag && P.fuel < fuelCap() && !monster ? "" : "disabled"}>붓기</button></span></div>`;
-  return h + `<p class="k">${Object.entries(ELEC).map(([n, fx]) => `${cleanIn(n) ? (on ? "⚡" : "○") : "✗"} ${n}: ${fx}`).join("<br>")}<br>⚡ 켜짐 · ○ 전기 없음 · ✗ 없음 (깨끗한 것만 켜짐)</p>`;
+  return h + `<p class="k">${ELEC_BASE.map(t => `${on ? "⚡" : "○"} ${t}`).join("<br>")}<br>${Object.entries(ELEC).map(([n, fx]) => `${cleanIn(n) ? (on ? "⚡" : "○") : "✗"} ${n}: ${fx}`).join("<br>")}<br>⚡ 켜짐 · ○ 전기 없음 · ✗ 없음 (깨끗한 것만 켜짐)</p>`;
 }
 
 // =============== 할 일 (📌 고정) ===============
@@ -7431,7 +7459,7 @@ function cookSpeed(r) { if (!r.fire || onCamp()) return 1; if (busRoom()) return
 // 요리하면 시간이 흐름 (쉘터에서도): F·E 30분 · D·C 1시간 · B 1시간 30분 · A 이상 2시간. 불이 좋거나 요리사면 줄어듦 (최소 30분)
 const COOK_TURNS = [1, 1, 2, 2, 3, 4, 4];
 function cookTurns(r) { return Math.max(1, Math.round(COOK_TURNS[Math.min(r.rank, COOK_TURNS.length - 1)] * cookSpeed(r) * (job("cook") ? 0.7 : 1))); }
-function cookMs(r) { return Math.round(COOK_SEC[Math.min(r.rank, COOK_SEC.length - 1)] * 1000 * cookSpeed(r) * (job("cook") ? 0.7 : 1)); }
+function cookMs(r) { return Math.round(COOK_SEC[Math.min(r.rank, COOK_SEC.length - 1)] * 1000 * cookSpeed(r) * (job("cook") ? 0.7 : 1) * (atBase() && powered() ? 0.85 : 1)); }
 function secTxt(ms) { return `${(ms / 1000).toFixed(ms % 1000 ? 1 : 0)}초`; }
 // 요리 갈래 (요리 창 왼쪽에서 나눠 보임). 표에 없는 요리는 '기타', 이름이 '구이'로 끝나면 구이
 const COOK_CATS = [["grill", "구이"], ["soup", "탕·국"], ["fry", "볶음"], ["steam", "찜·조림"], ["crisp", "튀김·전"], ["rice", "밥·면"], ["bread", "빵"], ["feast", "한상"], ["etc", "기타"]];
@@ -7519,7 +7547,7 @@ function cookTick() {
   if (!cookIsOpen() || monster || !canAfford(r.need) || (C.camp && !campLeft())) { cookEnd(); return; }
   for (const [m, k] of Object.entries(r.need)) removeItem(m, k);
   if (C.camp) world.camp--;
-  passTime(cookTurns(r)); if (Math.random() < cookChance(r)) { C.made++; train("취사", 2 + r.rank, r.rank); trialHit("취사", "cook", r.rank); if (elecOn("냉장고") && Math.random() < 0.2) C.extra++; } else { C.fail++; train("취사", 1, r.rank); }
+  passTime(cookTurns(r)); if (Math.random() < cookChance(r)) { C.made++; train("취사", 2 + r.rank, r.rank); trialHit("취사", "cook", r.rank); if (elecOn("냉장고") && Math.random() < 0.3) C.extra++; } else { C.fail++; train("취사", 1, r.rank); }
   C.k++;
   if (C.k < C.n && canAfford(r.need) && !(C.camp && !campLeft())) {   // 다음 것 불에 올림
     cookFx = { txt: C.made ? `${C.made + C.extra}개째!` : "탔다…", bad: !C.made, at: Date.now() };
@@ -8163,7 +8191,7 @@ function priceOf(it) {
 function buy(i) { const it = curShop()[i], pr = priceOf(it); if (player.gold < pr) { log(`캡이 부족해. (${pr}캡)`); return; }
   if (it.type === "hen") { const C = coop(); if (!henRoom()) { log(hasFacility("coop") ? `축사가 꽉 찼다. (${C.hens}/${henCap()}마리)` : "닭을 키울 축사가 없다. 거점에서 축사부터 짓자."); render(); return; } player.gold -= pr; C.hens++; sfx("cluck"); log(`<span class="buff">암탉을 샀다. 뒤뜰에 풀어 놓았다. (닭 ${C.hens}마리)</span>`); render(); return; }
   if (it.type === "rumor") { const r = hiddenRumor(), who = { name: "야시장 상인", face: { prop: "stall" } }; if (!r) { say([[who, "더 팔 소문이 없어. 넌 이미 다 아는 눈치군."]]); return; } player.gold -= pr; say([[who, "자, 받아. 읽고 나면 태워 버려."], [{ name: "구겨진 쪽지", face: { prop: "cashbox" } }, `"${r}"`]]); log(`수상한 쪽지를 샀다. (${pr}캡)`); render(); return; } if (it.type !== "potion" && !bagRoom()) { log("가방이 꽉 찼다. 뭘 좀 팔거나 버리자."); render(); return; } player.gold -= pr; sfx("coin"); npcTrade(); if (it.type === "potion") { player.potion++; log("붕대를 샀다."); } else { gain(it.name); log(`${it.name}${jo(it.name, "을", "를")} 샀다.${it.type === "weapon" ? " 가방에서 장비하자." : ""}`); } render(); }
-function enhanceChance() { return Math.max(0.2, Math.min(0.95, 0.9 - player.weapon.enhance * 0.1 + (job("scrapper") ? 0.1 : 0) + rankOf("대장간") * 0.02 + [0, 0, 0.1, 0.2][facLv("workbench")] + (elecOn("전동 공구대") ? 0.1 : 0) + st("dex") * 0.01)); }
+function enhanceChance() { return Math.max(0.2, Math.min(0.95, 0.9 - player.weapon.enhance * 0.1 + (job("scrapper") ? 0.1 : 0) + rankOf("대장간") * 0.02 + [0, 0, 0.1, 0.2][facLv("workbench")] + (elecOn("전동 공구대") ? 0.15 : 0) + st("dex") * 0.01)); }
 // 강화 방식별 재료 (재료 종류 수만큼 무기 둘레에 재료 칸이 생김)
 const ENH = {
   normal: { name: "일반", cost: { "고철": 2 } },
@@ -10749,6 +10777,7 @@ document.addEventListener("keydown", (e) => {
   if (FISHING.on) { if (e.key === "Escape") { closeFishing(); e.preventDefault(); } else if ([" ", "Enter", "z", "Z"].includes(e.key)) { if (!e.repeat) fishAct(); e.preventDefault(); } return; }
   if (dlg) { if (dialogKey(e)) e.preventDefault(); return; }
   if (e.key === " " || e.key === "Enter" || e.key === "z" || e.key === "Z") {
+    if (!e.repeat && decoActive() && deco.prev) { decoConfirm(); e.preventDefault(); return; }   // 꾸미기 미리보기 확정 (폰 A 단추 = 스페이스)
     if (!e.repeat && view === "scene" && selectedPlace === world.current && interact()) e.preventDefault();
     return;
   }
@@ -11347,8 +11376,8 @@ function renderAcctPop() {
   if (keep) { const e2 = [...el.querySelectorAll("input")].find(i => i.placeholder === keep.ph); if (e2) { e2.focus(); try { e2.setSelectionRange(keep.s, keep.s); } catch (e) {} } }
 }
 // 버전: 바뀌면 처음 열 때 업데이트 내용 창. 웹에 올린 판이면 version.json 을 10분마다 보고 새 판이 나오면 새로고침 창
-const GAME_VER = "2026.11.01-11";
-const PATCH_NOTES = ["친구 요청: 보내면 상대가 수락·거절 (수락하면 서로 명함 받음)", "쉘터 장소 메뉴에 '모닥불을 피운다' (나무 판자 2)", "지도: 모르는 곳도 위험도 표시 (숫자 + 글)"];
+const GAME_VER = "2026.11.02-1";
+const PATCH_NOTES = ["꾸미기: 칸을 누르면 미리보기 → PC는 더블클릭, 폰은 A 단추로 확정", "전기: 발전기를 돌리면 밤에 쉘터 방마다 불이 켜지고 정신력이 참", "전기 효과 강화: 잠 1시간 덜·정신력 +10, 단련 가끔 ×2, 요리 15% 빠름, 공구대 +15%, 냉장고 30%", "발전기에 말 걸어 기름 붓기 · 발전기 위에 남은 기름 표시"];
 function updSeen() {
   const was = storeGet("rpg_ver"); storeSet("rpg_ver", GAME_VER);
   if (was && was !== GAME_VER) askOpen({ title: "업데이트됐어", lines: [`<span class="k">${GAME_VER}</span>`, `<ul class="updList">${PATCH_NOTES.map(t => `<li>${t}</li>`).join("")}</ul>`], go: ["확인", null], stay: "" });
