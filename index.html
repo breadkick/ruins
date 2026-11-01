@@ -989,6 +989,29 @@
   .paper.on { border-color: var(--hazard); color: var(--ink); }
   .paper i { width: 64px; height: 40px; background-size: 1024px 64px; background-position-y: -12px; image-rendering: pixelated; }
   .paper.shopSw { display: inline-flex; padding: 0; margin-right: 6px; vertical-align: middle; cursor: default; } .paper.shopSw i { width: 32px; height: 24px; }
+  #tradePop { position: fixed; inset: 0; z-index: 64; display: none; align-items: center; justify-content: center; background: rgba(8, 7, 6, 0.72); padding: 12px; }
+  #tradePop.show { display: flex; }
+  #tradePop .trBox { width: min(720px, 100%); max-height: calc(100vh - 24px); overflow-y: auto; background: var(--panel); border: 2px solid #6b5536; box-shadow: 0 0 0 1px #000, 0 10px 30px rgba(0,0,0,0.6); padding: 0 12px 12px; }
+  #tradePop .trTitle { margin: 0 -12px 10px; padding: 6px; text-align: center; color: var(--hazard); font-size: 16px; letter-spacing: 6px; background: linear-gradient(#3a2c1b, #2a1f13); border-bottom: 2px solid #6b5536; }
+  #tradePop .trCols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  #tradePop .trSide { border: 1px solid var(--line); background: var(--panel2); padding: 8px; }
+  #tradePop .trSide.trMine { border-color: #6b5536; }
+  #tradePop .trHead { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; color: var(--ink-dim); font-size: 12px; } #tradePop .trHead b { color: var(--ink); font-size: 14px; }
+  #tradePop .trSlots { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  #tradePop .trSlot { display: flex; align-items: center; gap: 4px; min-height: 40px; padding: 3px 5px; border: 1px solid #4a3d2c; background: rgba(0,0,0,0.25); color: var(--ink); font: inherit; text-align: left; }
+  #tradePop .trSlot.full { background: rgba(201,162,39,0.08); border-color: #6b5536; } #tradePop button.trSlot.full:not(:disabled) { cursor: pointer; } #tradePop button.trSlot.full:not(:disabled):hover { border-color: var(--hazard); }
+  #tradePop .trSlot span { display: flex; flex-direction: column; min-width: 0; } #tradePop .trSlot b { font-weight: normal; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } #tradePop .trSlot small { color: var(--ink-dim); font-size: 11px; }
+  #tradePop .trCaps { margin-top: 6px; font-size: 13px; color: var(--ink-dim); } #tradePop .trCapIn { width: 80px; font: inherit; background: #15120e; color: var(--ink); border: 1px solid var(--line); padding: 2px 4px; }
+  #tradePop .trOk { margin-top: 6px; padding: 4px 6px; font-size: 12px; color: var(--ink-dim); border: 1px dashed var(--line); text-align: center; } #tradePop .trOk.on { color: #9fd17a; border: 1px solid #5f8a43; background: rgba(95,138,67,0.15); }
+  #tradePop .trBag { margin-top: 10px; border: 1px solid var(--line); padding: 6px; } #tradePop .trBagHead { font-size: 12px; color: var(--ink-dim); margin-bottom: 4px; }
+  #tradePop .trBagList { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 3px; max-height: 170px; overflow-y: auto; }
+  #tradePop .trBagRow { display: flex; gap: 2px; } #tradePop .trBagRow button { font: inherit; font-size: 12px; background: rgba(0,0,0,0.25); color: var(--ink); border: 1px solid #4a3d2c; padding: 2px 4px; cursor: pointer; }
+  #tradePop .trBagRow button:first-child { flex: 1; text-align: left; display: flex; align-items: center; gap: 2px; } #tradePop .trBagRow button small { margin-left: auto; color: var(--ink-dim); }
+  #tradePop .trBagRow button:disabled { opacity: 0.4; cursor: default; } #tradePop .trAll { color: var(--ink-dim) !important; }
+  #tradePop .trNote { font-size: 12px; margin: 8px 0 0; }
+  #tradePop .trBtns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; } #tradePop .trBtns button { font: inherit; padding: 6px 16px; background: var(--panel2); color: var(--ink); border: 1px solid var(--line); cursor: pointer; }
+  #tradePop .trBtns .trGo { border-color: var(--hazard); color: var(--hazard); } #tradePop .trBtns .trGo.on { background: rgba(201,162,39,0.15); }
+  @media (max-width: 560px) { #tradePop .trCols { grid-template-columns: 1fr; gap: 6px; } #tradePop .trSlots { grid-template-columns: repeat(4, 1fr); } #tradePop .trSlot { min-height: 34px; justify-content: center; padding: 2px; } #tradePop .trSlot span b { display: none; } #tradePop .trSlot .ico { margin-right: 0; } #tradePop .trSide { padding: 6px; } #tradePop .trOk, #tradePop .trCaps { margin-top: 4px; } #tradePop .trBagList { grid-template-columns: 1fr; max-height: 140px; } }
   .paper.lock { opacity: 0.45; cursor: not-allowed; }
   .paper small { font-size: 11px; line-height: 1.2; text-align: center; }
   .ico { display: inline-block; width: 24px; height: 24px; vertical-align: middle; image-rendering: pixelated; margin-right: 5px; background-repeat: no-repeat; }
@@ -8736,7 +8759,7 @@ function renderCards() {
   if (cloud.msg && cloud.busy === "" && tab === "bond" && cloud.ctx === "card") h += `<p class="setNote${cloud.bad ? " danger" : " buff"}">${cloud.msg}</p>`;
   if (!L.length) return h + `<p class="empty">아직 받은 명함이 없다.</p>`;
   return h + L.map((c, i) => { const fm = friendMateOf(c);
-    return `<div class="item ncRow"><span>${cardMini(c)}<b>${idEsc(c.n)}</b>${c.tt ? ` <span class="k">「${idEsc(c.tt)}」</span>` : ""}${c.uid ? ` <span class="relTag">친구</span>` : ""}<small>Lv.${c.lv}${c.w ? ` · “${idEsc(c.w)}”` : ""}${fm ? " · 쉘터에 와 있음" : ""}</small></span><span class="btns">${c.uid && on ? `<button onclick="chatOpenPop(chatRoomOf('${c.uid}'))">채팅${chatUnread(chatRoomOf(c.uid)) ? " ●" : ""}</button>` : ""}<button onclick="cardView(${i})">보기</button>${c.look && !fm ? `<button onclick="friendBring(${i})" ${atBase() && !monster ? "" : `disabled title="쉘터에서만"`}>데려오기</button>` : ""}<button onclick="cardDrop(${i})">버리기</button></span></div>`; }).join("");
+    return `<div class="item ncRow"><span>${cardMini(c)}<b>${idEsc(c.n)}</b>${c.tt ? ` <span class="k">「${idEsc(c.tt)}」</span>` : ""}${c.uid ? ` <span class="relTag">친구</span>` : ""}<small>Lv.${c.lv}${c.w ? ` · “${idEsc(c.w)}”` : ""}${fm ? " · 쉘터에 와 있음" : ""}</small></span><span class="btns">${c.uid && on ? `<button onclick="chatOpenPop(chatRoomOf('${c.uid}'))">채팅${chatUnread(chatRoomOf(c.uid)) ? " ●" : ""}</button><button onclick="tradeAsk('${c.uid}', '${idEsc(c.n).replace(/'/g, "")}')">거래</button>` : ""}<button onclick="cardView(${i})">보기</button>${c.look && !fm ? `<button onclick="friendBring(${i})" ${atBase() && !monster ? "" : `disabled title="쉘터에서만"`}>데려오기</button>` : ""}<button onclick="cardDrop(${i})">버리기</button></span></div>`; }).join("");
 }
 function closeMe() { meOpen = false; meFriend = null; idCopied = ""; renderMe(); }
 function meUp(k) { meFlash = k; statUp(k); }
@@ -8759,7 +8782,7 @@ function renderMe() {
     const c = typeof meFriend === "object" ? meFriend : myCards()[meFriend]; if (!c) { meOpen = false; meFriend = null; el.classList.remove("show"); el.innerHTML = ""; return; }
     const ani = meIn ? " in" : ""; meIn = false; const peek = typeof meFriend === "object", isFr = peek && c.uid && myCards().some(x => x.uid === c.uid);
     el.innerHTML = `<div class="me idWrap idFriend${ani}" id="idCard" role="dialog" aria-label="${idEsc(c.n)}의 신분증"><button class="meX" onclick="closeMe()" title="닫기 (Esc)">×</button>${idCardHTML(c)}
-      <div class="idCtl"><small class="idGot">${peek ? (isFr ? "친구" : "월드챗에서 본 신분증") : `받은 명함 · ${c.got + 1}일째에 받음${c.re != null && c.re !== c.got ? ` · ${c.re + 1}일째에 새로 받음` : ""}`}</small>${peek && !isFr && c.uid ? `<button onclick="friendAddUid('${c.uid}', '${c.no}')">친구 요청</button>` : ""}<button onclick="closeMe()">닫기</button></div></div>`;
+      <div class="idCtl"><small class="idGot">${peek ? (isFr ? "친구" : "월드챗에서 본 신분증") : `받은 명함 · ${c.got + 1}일째에 받음${c.re != null && c.re !== c.got ? ` · ${c.re + 1}일째에 새로 받음` : ""}`}</small>${peek && !isFr && c.uid ? `<button onclick="friendAddUid('${c.uid}', '${c.no}')">친구 요청</button>` : ""}${peek && c.uid && cloudOn() && c.uid !== cloud.user.uid ? `<button onclick="closeMe(); tradeAsk('${c.uid}', '${idEsc(c.n).replace(/'/g, "")}')">거래 신청</button>` : ""}<button onclick="closeMe()">닫기</button></div></div>`;
     return;
   }
   if (meFlip) {   // 뒷면: 칸에 적는 중이면 다시 그리지 않음 (글자·커서가 날아가지 않게)
@@ -10786,6 +10809,7 @@ document.addEventListener("keydown", (e) => {
   if (noteOpen && e.key === "Escape" && !cards.open && !ASK) { closeNotes(); e.preventDefault(); return; }
   if (cards.open) { if ([" ", "Enter", "Escape", "z", "Z"].includes(e.key)) { closeCards(); e.preventDefault(); } return; }
   if (ASK) { if (e.key === "Escape") { askClose(); e.preventDefault(); } else if (e.key === "Enter") { askGo(); e.preventDefault(); } return; }
+  if (tradeOn()) return;   // 교환창이 열려 있으면 게임 조작 안 함
   if (stashPop) { if (e.key === "Escape") { closeStash(); e.preventDefault(); } return; }
   if (wbIsOpen()) { if (e.key === "Escape") { closeWB(); e.preventDefault(); } return; }
   if (cookIsOpen()) { if (e.key === "Escape") { closeCook(); e.preventDefault(); } return; }
@@ -10865,7 +10889,7 @@ function cloudInit() {
     cloud.user = u ? { uid: u.uid, email: u.email || "", anon: !!u.isAnonymous } : null;
     if (u) storeSet(CLOUD_FLAG, "1");
     if (first) { first = false; cloudCbs.splice(0).forEach(f => f && f(true)); }
-    if (!u) { for (const r in chatWatch) chatWatch[r](); chatWatch = {}; chatLast = {}; if (chatRef) { chatRef.off(); chatRef = null; } chatMsgs = []; guildUnsub(); guildFlag(); freqUnwatch(); } else { guildLoad().then(() => guildTouch()); chatWatchAll(); freqWatch(); if (chatDock && !chatRef) { if (!chatRooms().some(([r]) => r === chatRoom)) chatRoom = "world"; chatSub(chatRoom); } }
+    if (!u) { for (const r in chatWatch) chatWatch[r](); chatWatch = {}; chatLast = {}; if (chatRef) { chatRef.off(); chatRef = null; } chatMsgs = []; guildUnsub(); guildFlag(); freqUnwatch(); tradeUnwatch(); } else { guildLoad().then(() => guildTouch()); chatWatchAll(); freqWatch(); tradeWatch(); if (chatDock && !chatRef) { if (!chatRooms().some(([r]) => r === chatRoom)) chatRoom = "world"; chatSub(chatRoom); } }
     render();
   });
 }
@@ -10973,6 +10997,116 @@ function friendReqNo(uid) { const r = freqList[uid] || {}; if (!cloudOn()) retur
 function renderFreq() { const K = Object.keys(freqList); if (!cloudOn() || !K.length) return "";
   return `<div class="sub">친구 요청 <span class="k">${K.length}</span></div>` + K.map(k => { const r = freqList[k] || {};
     return `<div class="item"><span><b>${idEsc(r.n || "누군가")}</b><small>${cardNoTxt(r.no || "")}</small></span><span class="btns"><button onclick="friendReqYes('${k}')" ${cloud.busy ? "disabled" : ""}>수락</button><button onclick="friendReqNo('${k}')">거절</button></span></div>`; }).join(""); }
+// =============== 거래 (교환창) ===============
+// 신청: treq/{상대}/{나} → 상대가 수락하면 trade/{두 uid} 를 만들고 tlive/{각자} = 그 id → 둘 다 교환창이 열림
+// 칸마다 가방 물건을 올리고(누르면 1개씩), 캡도 올림. 무엇이든 바뀌면 둘 다 확인이 풀림. 둘 다 확인하면: 각자 자기 것을 빼고(paid) → 상대 것을 받음(recv) → 끝
+const TRADE_SLOTS = 8, TRADE_REQ_MS = 180000;
+let tradeId = null, tradeRef = null, tradeLiveRef = null, treqRef = null, tradeD = null, treqList = {}, treqShown = {}, tradeBusy = false, tradeCapsDraft = "";
+function tradeOn() { return !!(tradeId && tradeD && (tradeD.state === "open" || tradeD.state === "pay")); }
+function tradeMe() { return tradeD && cloud.user ? tradeD[cloud.user.uid] || {} : {}; }
+function tradeOther() { if (!tradeD || !cloud.user) return {}; const k = [tradeD.a, tradeD.b].find(u => u !== cloud.user.uid); return tradeD[k] || {}; }
+function tradeOtherUid() { return tradeD ? [tradeD.a, tradeD.b].find(u => u !== cloud.user.uid) : null; }
+function tradeWatch() { tradeUnwatch(); if (!cloudOn()) return; const me = cloud.user.uid, D = firebase.database();
+  treqRef = D.ref("treq/" + me); treqRef.on("value", sn => { treqList = sn.exists() ? sn.val() || {} : {}; for (const k in treqShown) if (!treqList[k]) delete treqShown[k]; treqPopNext(); });
+  tradeLiveRef = D.ref("tlive/" + me); tradeLiveRef.on("value", sn => { const id = sn.exists() ? sn.val() : null; if (id && id !== tradeId) tradeSub(id); else if (!id && tradeId && !(tradeD && tradeD.state === "pay")) tradeSub(null); }); }
+function tradeUnwatch() { if (treqRef) { treqRef.off(); treqRef = null; } if (tradeLiveRef) { tradeLiveRef.off(); tradeLiveRef = null; } tradeSub(null); treqList = {}; treqShown = {}; }
+function tradeSub(id) { if (tradeRef) { tradeRef.off(); tradeRef = null; } tradeId = id; tradeD = null; tradeCapsDraft = "";
+  if (id) { tradeRef = firebase.database().ref("trade/" + id); tradeRef.on("value", sn => { tradeD = sn.exists() ? sn.val() : null; tradeStep(); renderTrade(); }); }
+  renderTrade(); }
+// 신청
+function tradeAsk(uid, name) {
+  if (!cloudOn()) { log("거래는 로그인해야 할 수 있어. (설정 → 계정)"); render(); return; }
+  if (tradeOn()) { log("이미 거래 중이다."); render(); return; } if (monster) return;
+  firebase.database().ref(`treq/${uid}/${cloud.user.uid}`).set({ n: player.name, at: Date.now() }).then(() => { log(`${idEsc(name || "상대")}에게 거래를 신청했다. 상대가 수락하면 교환창이 열린다.`); render(); }).catch(e => { console.error(e); log("거래 신청이 안 갔다. 잠시 뒤 다시 해 보자."); render(); });
+}
+function treqPopNext() {
+  if (ASK || monster || creating || dlg || tradeOn()) { clearTimeout(treqPopNext.t); treqPopNext.t = setTimeout(treqPopNext, 3000); return; }
+  const now = Date.now(), k = Object.keys(treqList).find(x => !treqShown[x] && now - ((treqList[x] || {}).at || 0) < TRADE_REQ_MS); if (!k) return; treqShown[k] = 1; const r = treqList[k] || {};
+  askOpen({ title: "거래 신청", lines: [`${idEsc(r.n || "누군가")}${jo(r.n || "누군가", "이", "가")} 거래를 하자고 한다.`], go: ["수락", () => tradeAccept(k)], stay: "거절", no: () => treqDrop(k) });
+}
+function treqDrop(uid) { if (cloudOn()) firebase.database().ref(`treq/${cloud.user.uid}/${uid}`).remove().catch(() => {}); }
+async function tradeAccept(uid) {
+  const r = treqList[uid] || {}, me = cloud.user.uid, D = firebase.database(); treqDrop(uid);
+  if (tradeOn()) { log("이미 거래 중이다."); render(); return; }
+  if (Date.now() - (r.at || 0) > TRADE_REQ_MS) { log("오래된 신청이라 사라졌다."); render(); return; }
+  const id = [me, uid].sort().join("_"), side = n => ({ n, items: [], caps: 0, ok: false, paid: false, recv: false });
+  try { await D.ref("trade/" + id).set({ a: me, b: uid, at: Date.now(), state: "open", [me]: side(player.name), [uid]: side(r.n || "상대") });
+    await D.ref("tlive/" + me).set(id); await D.ref("tlive/" + uid).set(id); } catch (e) { console.error(e); log("교환창을 못 열었다."); render(); }
+}
+// 올리기·내리기 (내 쪽만). 바뀌면 둘 다 확인 풀림
+function tradeEdit(fn) {
+  if (!tradeOn() || tradeD.state !== "open" || tradeBusy) return; const me = cloud.user.uid;
+  tradeRef.transaction(T => { if (!T || T.state !== "open" || !T[me]) return; const M = T[me]; M.items = M.items || []; fn(M); T[T.a].ok = false; T[T.b].ok = false; return T; }).catch(e => console.error(e));
+}
+function tradeAdd(n) { const have = bagHas(n); if (!have) return; if (n === player.weapon.name && have <= 0) return;
+  tradeEdit(M => { const L = M.items, j = L.findIndex(x => x[0] === n); if (j >= 0) { if (L[j][1] < have) L[j][1]++; } else if (L.length < TRADE_SLOTS) L.push([n, 1]); }); }
+function tradeAddAll(n) { const have = bagHas(n); if (!have) return; tradeEdit(M => { const L = M.items, j = L.findIndex(x => x[0] === n); if (j >= 0) L[j][1] = have; else if (L.length < TRADE_SLOTS) L.push([n, have]); }); }
+function tradeTake(j) { tradeEdit(M => { const L = M.items; if (!L[j]) return; if (--L[j][1] <= 0) L.splice(j, 1); }); }
+function tradeCaps(v) { const k = Math.max(0, Math.min(player.gold, Math.floor(+v || 0))); tradeCapsDraft = ""; tradeEdit(M => { M.caps = k; }); }
+function tradeOk() {
+  if (!tradeOn() || tradeD.state !== "open") return; const me = cloud.user.uid;
+  if (!tradeMe().ok && !tradeHave()) { log("올린 물건이 가방에 모자라다."); render(); return; }
+  tradeRef.transaction(T => { if (!T || T.state !== "open") return; T[me].ok = !T[me].ok; if (T[T.a].ok && T[T.b].ok) T.state = "pay"; return T; }).catch(e => console.error(e));
+}
+function tradeCancel() {
+  if (!tradeId) return; const id = tradeId, D = firebase.database(), ou = tradeD && tradeOtherUid();
+  if (tradeD && tradeD.state === "pay") { log("이미 주고받는 중이라 취소할 수 없다."); render(); return; }
+  tradeRef.transaction(T => { if (!T || T.state !== "open") return; T.state = "cancel"; return T; }).then(() => {
+    D.ref("tlive/" + cloud.user.uid).remove().catch(() => {}); if (ou) D.ref("tlive/" + ou).remove().catch(() => {}); }).catch(e => console.error(e));
+  if (!tradeD || tradeD.state !== "pay") { tradeSub(null); log("거래를 그만뒀다."); render(); }
+}
+function tradeHave() { const M = tradeMe(); return (M.items || []).every(([n, k]) => bagHas(n) >= k) && (M.caps || 0) <= player.gold; }
+// 주고받기: 둘 다 확인 → 내 것 빼기 → 상대 것 받기. 받은 표시는 저장에도 (다시 접속해도 두 번 안 받게)
+async function tradeStep() {
+  if (!tradeD || !tradeId || tradeBusy) return; const me = cloud.user.uid, D = firebase.database(), sid = tradeId + ":" + tradeD.at, TG = player.tradeLog || (player.tradeLog = {});
+  if (tradeD.state === "cancel") { const n = tradeOther().n; D.ref("tlive/" + me).remove().catch(() => {}); tradeSub(null); log(`${idEsc(n || "상대")}${jo(n || "상대", "과", "와")}의 거래가 취소됐다.`); render(); return; }
+  if (tradeD.state === "done") { D.ref("tlive/" + me).remove().catch(() => {}); tradeSub(null); render(); return; }
+  if (tradeD.state !== "pay") return;
+  const M = tradeMe(), O = tradeOther();
+  tradeBusy = true;
+  try {
+    if (!M.paid && !TG[sid + ":paid"]) {
+      if (!tradeHave()) { await tradeRef.transaction(T => { if (!T || T.state !== "pay" || T[me].paid) return; T.state = "cancel"; return T; }); return; }
+      const WD = player.wdur || (player.wdur = {}), wd = {};
+      for (const [n, k] of M.items || []) { removeItemBag(n, k); if (WD[n] && WD[n].length > bagHas(n)) wd[n] = WD[n].splice(0, WD[n].length - bagHas(n)); }
+      player.gold -= M.caps || 0; TG[sid + ":paid"] = 1; saveGame();
+      await firebase.database().ref(`trade/${tradeId}/${me}`).update({ paid: true, wd }); log(`<span class="k">거래: 올린 것을 넘겼다.</span>`);
+    } else if (!M.paid && TG[sid + ":paid"]) await firebase.database().ref(`trade/${tradeId}/${me}`).update({ paid: true });
+    if (O.paid && !M.recv && !TG[sid + ":recv"]) {
+      const WD = player.wdur || (player.wdur = {}), got = [];
+      for (const [n, k] of O.items || []) { addItem(n, k); got.push(`${n} ${k}`); }
+      for (const n in O.wd || {}) (WD[n] || (WD[n] = [])).push(...O.wd[n]);
+      if (O.caps) { player.gold += O.caps; got.push(`${O.caps}캡`); }
+      TG[sid + ":recv"] = 1; saveGame(); await firebase.database().ref(`trade/${tradeId}/${me}`).update({ recv: true });
+      log(`<span class="buff">${idEsc(O.n || "상대")}${jo(O.n || "상대", "과", "와")} 거래했다.${got.length ? ` 받은 것: ${got.join(", ")}` : ""}</span>`); sfx && sfx("buy");
+    } else if (O.paid && !M.recv && TG[sid + ":recv"]) await firebase.database().ref(`trade/${tradeId}/${me}`).update({ recv: true });
+    const T = (await tradeRef.get()).val();
+    if (T && T[T.a].recv && T[T.b].recv) { await tradeRef.transaction(X => { if (!X) return; X.state = "done"; return X; }); }
+    if (T && T.state === "done" || (T && T[T.a].recv && T[T.b].recv)) { await D.ref("tlive/" + me).remove(); setTimeout(() => { if (T.a === me) D.ref("trade/" + tradeIdOf(T)).remove().catch(() => {}); }, 4000); for (const k in TG) if (k.startsWith(tradeIdOf(T) + ":") && !k.startsWith(sid)) delete TG[k]; tradeSub(null); render(); }
+  } catch (e) { console.error(e); } finally { tradeBusy = false; }
+  if (tradeD && tradeD.state === "pay") setTimeout(tradeStep, 600);
+}
+function tradeIdOf(T) { return [T.a, T.b].sort().join("_"); }
+// 교환창
+function renderTrade() {
+  let el = document.getElementById("tradePop"); if (!el) { el = document.createElement("div"); el.id = "tradePop"; document.body.appendChild(el); }
+  const show = tradeOn(); el.classList.toggle("show", show); if (!show) { el.innerHTML = ""; return; }
+  const M = tradeMe(), O = tradeOther(), pay = tradeD.state === "pay";
+  const slots = (L, mine) => { let h = ""; for (let j = 0; j < TRADE_SLOTS; j++) { const it = (L || [])[j];
+    const inner = it && `${ico(it[0])}<span><b>${idEsc(it[0])}</b><small>${it[1]}개</small></span>`;
+    h += it ? (mine && !pay ? `<button class="trSlot full" onclick="tradeTake(${j})" title="누르면 1개 내림">${inner}</button>` : `<div class="trSlot full" title="${idEsc(it[0])} ${it[1]}개">${inner}</div>`) : `<div class="trSlot"></div>`; } return h; };
+  const bag = Object.keys(player.items).filter(n => player.items[n] > 0).sort((a, b) => a.localeCompare(b, "ko"));
+  const mineL = M.items || [], left = n => bagHas(n) - ((mineL.find(x => x[0] === n) || [])[1] || 0);
+  el.innerHTML = `<div class="trBox" onclick="event.stopPropagation()"><div class="trTitle">교환창</div>
+    <div class="trCols"><section class="trSide"><div class="trHead"><span>상대방</span><b>${idEsc(O.n || "?")}</b></div><div class="trSlots">${slots(O.items, false)}</div>
+      <div class="trCaps">캡 <b>${capTxt(O.caps || 0)}</b></div><div class="trOk ${O.ok ? "on" : ""}">상대방 확인 ${O.ok ? "✓ 확인함" : "· 아직"}</div></section>
+    <section class="trSide trMine"><div class="trHead"><span>나</span><b>${idEsc(player.name)}</b></div><div class="trSlots">${slots(mineL, true)}</div>
+      <div class="trCaps">캡 <input class="trCapIn" type="number" min="0" max="${player.gold}" value="${tradeCapsDraft !== "" ? tradeCapsDraft : M.caps || 0}" ${pay ? "disabled" : ""} oninput="tradeCapsDraft = this.value" onchange="tradeCaps(this.value)" onkeydown="if (event.key === 'Enter') this.blur()" aria-label="올릴 캡"> <small class="k">/ ${player.gold}</small></div>
+      <div class="trOk ${M.ok ? "on" : ""}">내 확인 ${M.ok ? "✓ 확인함" : "· 아직"}</div></section></div>
+    ${pay ? `<p class="trNote buff">둘 다 확인했다. 주고받는 중…</p>` : `<div class="trBag"><div class="trBagHead">내 가방 <small class="k">누르면 1개씩 올림 · 올린 칸을 누르면 1개 내림</small></div><div class="trBagList">${bag.length ? bag.map(n => `<div class="trBagRow${left(n) > 0 ? "" : " out"}"><button onclick="tradeAdd('${n.replace(/'/g, "\\'")}')" ${left(n) > 0 ? "" : "disabled"}>${ico(n)}${idEsc(n)} <small>${left(n)}</small></button><button class="trAll" onclick="tradeAddAll('${n.replace(/'/g, "\\'")}')" ${left(n) > 0 ? "" : "disabled"} title="전부 올림">전부</button></div>`).join("") : `<p class="empty">가방이 비었다.</p>`}</div></div>
+    <p class="trNote k">물건을 올리거나 내리면 둘 다 확인이 풀려. 둘 다 확인하면 바로 거래돼.</p>`}
+    <div class="trBtns"><button class="trGo${M.ok ? " on" : ""}" onclick="tradeOk()" ${pay ? "disabled" : ""}>${M.ok ? "확인 풀기" : "확인"}</button><button onclick="tradeCancel()" ${pay ? "disabled" : ""}>거래 취소</button></div></div>`;
+}
 async function friendSync(force) {   // 친구 목록·받은 명함을 서버 내용으로 (1분에 한 번쯤. 인연 탭 열 때·시작할 때)
   if (!cloudOn() || friendBusy || (!force && Date.now() - friendSyncAt < 60000)) return; friendBusy = true; friendSyncAt = Date.now();
   try {
@@ -11214,6 +11348,7 @@ function guildMemberTalk(uid) {
   const ch = [];
   if (fr >= 0) ch.push(["명함을 본다", () => cardView(fr)]);
   else if (c) ch.push(["친구 요청", () => { friendDraft = c.no; friendAddGo(); }, "수락하면 서로 명함"]);
+  if (cloudOn()) ch.push(["거래한다", () => tradeAsk(uid, (c && c.n) || m.n), "교환창"]);
   ch.push(["그만둔다"]);
   say([[who, `${pick(lines)}${c ? ` <span class="k">(Lv.${c.lv}${c.tt ? ` · ${idEsc(c.tt)}` : ""})</span>` : ""}`]], ch);
 }
@@ -11400,8 +11535,8 @@ function renderAcctPop() {
   if (keep) { const e2 = [...el.querySelectorAll("input")].find(i => i.placeholder === keep.ph); if (e2) { e2.focus(); try { e2.setSelectionRange(keep.s, keep.s); } catch (e) {} } }
 }
 // 버전: 바뀌면 처음 열 때 업데이트 내용 창. 웹에 올린 판이면 version.json 을 10분마다 보고 새 판이 나오면 새로고침 창
-const GAME_VER = "2026.11.02-2";
-const PATCH_NOTES = ["야시장 상인이 밤마다 벽지 1 · 바닥재 1씩 팜 (한 번 사면 계속 씀)", "벽지·바닥재: 처음엔 기본 몇 개만, 이미 칠해 둔 건 그대로 가짐"];
+const GAME_VER = "2026.11.02-3";
+const PATCH_NOTES = ["거래: 친구 명함·월드챗 신분증·길드원에게 '거래' → 교환창에서 물건·캡을 올리고 둘 다 확인하면 교환", "교환창: 올린 칸 누르면 1개 내림 · 바꾸면 둘 다 확인 풀림"];
 function updSeen() {
   const was = storeGet("rpg_ver"); storeSet("rpg_ver", GAME_VER);
   if (was && was !== GAME_VER) askOpen({ title: "업데이트됐어", lines: [`<span class="k">${GAME_VER}</span>`, `<ul class="updList">${PATCH_NOTES.map(t => `<li>${t}</li>`).join("")}</ul>`], go: ["확인", null], stay: "" });
