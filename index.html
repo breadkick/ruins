@@ -988,6 +988,8 @@
   .paper { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 2px; background: var(--panel2); border: 1px solid var(--line); color: var(--ink-dim); cursor: pointer; font: inherit; }
   .paper.on { border-color: var(--hazard); color: var(--ink); }
   .paper i { width: 64px; height: 40px; background-size: 1024px 64px; background-position-y: -12px; image-rendering: pixelated; }
+  .paper.shopSw { display: inline-flex; padding: 0; margin-right: 6px; vertical-align: middle; cursor: default; } .paper.shopSw i { width: 32px; height: 24px; }
+  .paper.lock { opacity: 0.45; cursor: not-allowed; }
   .paper small { font-size: 11px; line-height: 1.2; text-align: center; }
   .ico { display: inline-block; width: 24px; height: 24px; vertical-align: middle; image-rendering: pixelated; margin-right: 5px; background-repeat: no-repeat; }
   .ico.big { background-image: url("img/items.png"); }
@@ -2953,10 +2955,10 @@ function startPlace(name) { if (world.current !== "shelter") { log("가구는 �
 function decoClick(ev) {
   const r = rectOf(document.getElementById("sceneWorld")), lx = (ev.clientX / UIZ - r.left) / SCENE_SCALE, ly = (ev.clientY / UIZ - r.top) / SCENE_SCALE;
   const w = ev.target.closest && ev.target.closest("[data-wall]");
-  if (deco.tool === "paper") { if (w) { RM()["wall" + w.dataset.wall] = deco.paper; render(); } return; }
+  if (deco.tool === "paper") { if (w && paperOwned(deco.paper)) { RM()["wall" + w.dataset.wall] = deco.paper; render(); } return; }
   const a = lx / 16, b = (ly - 8) / 8, x = Math.round((a + b) / 2), y = Math.round((b - a) / 2);   // 누른 곳의 바닥 칸
   if (x < 0 || y < 0 || x >= SCENE || y >= SCENE) return;
-  if (deco.tool === "floor") { const t = RM().tiles || Array(SCENE * SCENE).fill(null); t[y * SCENE + x] = deco.floor; RM().tiles = t; render(); return; }
+  if (deco.tool === "floor") { if (!floorOwned(deco.floor)) return; const t = RM().tiles || Array(SCENE * SCENE).fill(null); t[y * SCENE + x] = deco.floor; RM().tiles = t; render(); return; }
   if (deco.place || deco.sel) {   // 바로 놓지 않고 미리보기만. 확정은 decoConfirm (PC: 같은 칸 빠르게 두 번 = 더블클릭 · 폰: A 단추)
     const q = deco.prev, now = Date.now(), dbl = !TOUCH && q && q.x === x && q.y === y && now - (decoClick.at || 0) < 450; decoClick.at = now;
     if (dbl) { decoClick.at = 0; decoConfirm(); return; }
@@ -3024,6 +3026,7 @@ function placeFurn(x, y) {
   removeItem(name); RM().decor.push(nd); deco.place = deco.prev = null; deco.sel = "d" + (RM().decor.length - 1);
   log(`${name}${jo(name, "을", "를")} 방에 놓았다.`); render();
 }
+function decoLocked() { log("아직 없는 무늬다. 밤에 야시장 상인이 날마다 하나씩 판다."); render(); }
 function fillFloor() { RM().floor = deco.floor; RM().tiles = null; log(`바닥을 ${INDOOR_FLOORS[deco.floor][1]}${jo(INDOOR_FLOORS[deco.floor][1], "으로", "로")} 깔았다.`); render(); }
 function bothWalls() { RM().wallL = RM().wallR = deco.paper; log(`양쪽 벽을 ${WALLPAPERS[deco.paper]}${jo(WALLPAPERS[deco.paper], "으로", "로")} 발랐다.`); render(); }
 function renderDeco() {
@@ -3041,9 +3044,9 @@ function renderDeco() {
     const bag = Object.keys(FURNITURE).filter(n => itemCount(n) > 0);
     h += `<div class="sub">가진 가구</div>` + (bag.length ? bag.map(n => `<div class="item"><span>${ico(n)}${n}<small>${itemCount(n)}개</small></span><span class="btns"><button onclick="startPlace('${n}')">놓기</button></span></div>`).join("") : `<p class="empty">아직 없음. 장소를 뒤지면 가구가 나와요.</p>`);
   } else if (deco.tool === "floor") {
-    h += `<p class="k">칠할 바닥을 고르고 장면에서 칸을 누르세요.</p><div class="papers">` + INDOOR_FLOORS.map(([t, n], i) => `<button class="paper${i === deco.floor ? " on" : ""}" onclick="deco.floor=${i}; render()" title="${n}"><i class="fl" style="background-position:${-t * 64}px -2px"></i><small>${n}</small></button>`).join("") + `</div>` + choice("방 전체를 이 바닥으로", "fillFloor()");
+    h += `<p class="k">칠할 바닥을 고르고 장면에서 칸을 누르세요. 흐린 건 밤에 야시장에서 팔아요.</p><div class="papers">` + INDOOR_FLOORS.map(([t, n], i) => `<button class="paper${i === deco.floor ? " on" : ""}${floorOwned(i) ? "" : " lock"}" onclick="${floorOwned(i) ? `deco.floor=${i}; render()` : "decoLocked()"}" title="${n}${floorOwned(i) ? "" : " · 야시장에서 팖"}"><i class="fl" style="background-position:${-t * 64}px -2px"></i><small>${n}</small></button>`).join("") + `</div>` + choice("방 전체를 이 바닥으로", "fillFloor()");
   } else {
-    h += `<p class="k">바를 벽지를 고르고 장면에서 벽을 누르세요. 지금 왼쪽 ${WALLPAPERS[L]} · 오른쪽 ${WALLPAPERS[R]}</p><div class="papers">` + WALLPAPERS.map((n, i) => `<button class="paper${i === deco.paper ? " on" : ""}" onclick="deco.paper=${i}; render()" title="${n}"><i style="${i ? `background-position:${-(i - 1) * 64}px 0` : "background:#8b847b"}"></i><small>${n}</small></button>`).join("") + `</div>` + choice("양쪽 벽 모두 이 벽지로", "bothWalls()");
+    h += `<p class="k">바를 벽지를 고르고 장면에서 벽을 누르세요. 흐린 건 밤에 야시장에서 팔아요. 지금 왼쪽 ${WALLPAPERS[L]} · 오른쪽 ${WALLPAPERS[R]}</p><div class="papers">` + WALLPAPERS.map((n, i) => `<button class="paper${i === deco.paper ? " on" : ""}${paperOwned(i) ? "" : " lock"}" onclick="${paperOwned(i) ? `deco.paper=${i}; render()` : "decoLocked()"}" title="${n}${paperOwned(i) ? "" : " · 야시장에서 팖"}"><i style="${i ? `background-position:${-(i - 1) * 64}px 0` : "background:#8b847b"}"></i><small>${n}</small></button>`).join("") + `</div>` + choice("양쪽 벽 모두 이 벽지로", "bothWalls()");
   }
   return h;
 }
@@ -3948,7 +3951,25 @@ const NIGHT_ITEMS = [
   { name: "수상한 쪽지", price: 30, type: "rumor", night: true },
 ];
 const NIGHT_DAILY = [["희귀 합금", 80], ["강철 조각", 30], ["군용 식량", 30], ["기름통", 15], ["배터리", 20], ["닭고기", 20]];
-function curShop() { if (!places[world.current].night) return shopItems; const d = NIGHT_DAILY[dayNo() % NIGHT_DAILY.length]; return [...NIGHT_ITEMS, { name: d[0], price: d[1], type: "item", night: true, today: true }]; }
+// 벽지·바닥재: 처음엔 몇 개만. 나머지는 야시장 상인이 밤마다 벽지 1 · 바닥재 1씩 (한 번 사면 계속 씀). 이미 칠해 둔 건 가진 걸로 침
+const DECO_FREE_P = ["맨 콘크리트", "얼룩진 콘크리트", "꽃무늬 벽지", "나무 판자"], DECO_FREE_F = ["콘크리트", "나무 마루"];
+const DECO_RICH = ["대리석 판", "크림 대리석", "하늘색 타일", "큰 흰 타일", "붉은 카펫", "무늬 카펫"];
+function decoOwn() {
+  if (player.decoOwn) return player.decoOwn; const O = player.decoOwn = { p: [], f: [] };
+  WALLPAPERS.forEach((n, i) => { if (DECO_FREE_P.includes(n)) O.p.push(i); }); INDOOR_FLOORS.forEach(([, n], i) => { if (DECO_FREE_F.includes(n)) O.f.push(i); });
+  const B = world.base || {}; [B, ...Object.values(B.rooms || {})].forEach(r => { if (!r) return; [r.wallL, r.wallR].forEach(i => { if (i != null && !O.p.includes(i)) O.p.push(i); });
+    [r.floor, ...(r.tiles || [])].forEach(i => { if (i != null && !O.f.includes(i)) O.f.push(i); }); });
+  return O;
+}
+function paperOwned(i) { return decoOwn().p.includes(i); } function floorOwned(i) { return decoOwn().f.includes(i); }
+function decoPrice(n) { return DECO_RICH.includes(n) ? 120 : 60; }
+function decoStock() {   // 오늘 밤 야시장의 벽지 하나 · 바닥재 하나 (아직 없는 것 중 날마다 바뀜)
+  const d = dayNo(), P = WALLPAPERS.map((n, i) => i).filter(i => !paperOwned(i)), F = INDOOR_FLOORS.map((x, i) => i).filter(i => !floorOwned(i)), L = [];
+  if (P.length) { const i = P[(d * 7 + 3) % P.length]; L.push({ name: `벽지 · ${WALLPAPERS[i]}`, price: decoPrice(WALLPAPERS[i]), type: "paper", idx: i, night: true, today: true }); }
+  if (F.length) { const i = F[(d * 5 + 1) % F.length], n = INDOOR_FLOORS[i][1]; L.push({ name: `바닥재 · ${n}`, price: decoPrice(n), type: "floor", idx: i, night: true, today: true }); }
+  return L;
+}
+function curShop() { if (!places[world.current].night) return shopItems; const d = NIGHT_DAILY[dayNo() % NIGHT_DAILY.length]; return [...NIGHT_ITEMS, { name: d[0], price: d[1], type: "item", night: true, today: true }, ...decoStock()]; }
 const rarityColor = { common: "#d9cfb8", rare: "#7bb0c9", unique: "#c9a227" };
 const rarityLabel = { common: "", rare: "[RARE] ", unique: "[UNIQUE] " };
 function rankOf(s) { return player.skills[s].rank; }
@@ -8190,6 +8211,8 @@ function priceOf(it) {
 }
 function buy(i) { const it = curShop()[i], pr = priceOf(it); if (player.gold < pr) { log(`캡이 부족해. (${pr}캡)`); return; }
   if (it.type === "hen") { const C = coop(); if (!henRoom()) { log(hasFacility("coop") ? `축사가 꽉 찼다. (${C.hens}/${henCap()}마리)` : "닭을 키울 축사가 없다. 거점에서 축사부터 짓자."); render(); return; } player.gold -= pr; C.hens++; sfx("cluck"); log(`<span class="buff">암탉을 샀다. 뒤뜰에 풀어 놓았다. (닭 ${C.hens}마리)</span>`); render(); return; }
+  if (it.type === "paper" || it.type === "floor") { const O = decoOwn(), L = it.type === "paper" ? O.p : O.f; if (L.includes(it.idx)) return; player.gold -= pr; L.push(it.idx); sfx && sfx("buy");
+    log(`<span class="buff">${it.name}${jo(it.name, "을", "를")} 샀다. 거점 꾸미기에서 언제든 쓸 수 있다.</span>`); render(); return; }
   if (it.type === "rumor") { const r = hiddenRumor(), who = { name: "야시장 상인", face: { prop: "stall" } }; if (!r) { say([[who, "더 팔 소문이 없어. 넌 이미 다 아는 눈치군."]]); return; } player.gold -= pr; say([[who, "자, 받아. 읽고 나면 태워 버려."], [{ name: "구겨진 쪽지", face: { prop: "cashbox" } }, `"${r}"`]]); log(`수상한 쪽지를 샀다. (${pr}캡)`); render(); return; } if (it.type !== "potion" && !bagRoom()) { log("가방이 꽉 찼다. 뭘 좀 팔거나 버리자."); render(); return; } player.gold -= pr; sfx("coin"); npcTrade(); if (it.type === "potion") { player.potion++; log("붕대를 샀다."); } else { gain(it.name); log(`${it.name}${jo(it.name, "을", "를")} 샀다.${it.type === "weapon" ? " 가방에서 장비하자." : ""}`); } render(); }
 function enhanceChance() { return Math.max(0.2, Math.min(0.95, 0.9 - player.weapon.enhance * 0.1 + (job("scrapper") ? 0.1 : 0) + rankOf("대장간") * 0.02 + [0, 0, 0.1, 0.2][facLv("workbench")] + (elecOn("전동 공구대") ? 0.15 : 0) + st("dex") * 0.01)); }
 // 강화 방식별 재료 (재료 종류 수만큼 무기 둘레에 재료 칸이 생김)
@@ -9440,7 +9463,8 @@ function renderSell() {
 function renderShop() {
   let html = `<div class="sub">${places[world.current].night ? places[world.current].name : "암시장"} · 가진 돈 ${capTxt(player.gold)}</div>${onSale() && !places[world.current].night ? `<p class="buff">오늘은 특가 날이다. 물건이 25% 싸다. (무기 빼고)</p>` : ""}<div class="subTabs">${[["buy", "사기"], ["sell", "팔기"]].map(([k, l]) => `<button class="${shopTab === k ? "on" : ""}" onclick="shopTab='${k}'; render()">${l}</button>`).join("")}</div>`;
   if (shopTab === "sell") return html + renderSell() + choice("거래를 마친다", "mode='choices'; render()");
-  curShop().forEach((it, i) => { const desc = it.type === "hen" ? henShopNote() : it.type === "rumor" ? "숨은 것에 대한 소문 하나" : it.night ? `${it.today ? "오늘만 · " : ""}${USE_HINT[it.name] || (itemDefs[it.name] || {}).note || ""}` : it.type === "weapon" ? `공격력 +${it.atk}` : it.type === "potion" ? "HP +20" : it.name.includes("씨앗") ? "텃밭에 심기" : it.name === "나무 판자" ? "가구 재료" : it.name === "깨끗한 물" ? "마시거나 요리에" : it.name === "기름통" ? "발전기·랜턴 연료" : it.name === "배터리" ? "라디오에 넣는다" : it.name === "페트병" ? "물가에서 물 뜨기 · 1개씩" : it.name === "보온병" ? "물가에서 물 뜨기 · 3개씩" : "요리하면 음식"; html += `<div class="item"><span>${it.type === "hen" ? petIcon("hen") : ico(it.name)}${it.name}<small>${desc}</small></span><span class="btns">${priceOf(it) < it.price ? `<s class="k">${it.price}</s> ` : ""}${capTxt(priceOf(it))} <button onclick="buy(${i})" ${player.gold < priceOf(it) || (it.type === "hen" && !henRoom()) ? "disabled" : ""}>구매</button></span></div>`; });
+  curShop().forEach((it, i) => { const sw = it.type === "paper" ? `<span class="paper shopSw"><i style="${it.idx ? `background-position:${-(it.idx - 1) * 64}px -12px` : "background:#8b847b"}"></i></span>` : it.type === "floor" ? `<span class="paper shopSw"><i class="fl" style="background-position:${-INDOOR_FLOORS[it.idx][0] * 64}px -2px"></i></span>` : "";
+    const desc = it.type === "paper" || it.type === "floor" ? `오늘만 · 꾸미기 ${it.type === "paper" ? "벽지" : "바닥"} · 한 번 사면 계속 씀` : it.type === "hen" ? henShopNote() : it.type === "rumor" ? "숨은 것에 대한 소문 하나" : it.night ? `${it.today ? "오늘만 · " : ""}${USE_HINT[it.name] || (itemDefs[it.name] || {}).note || ""}` : it.type === "weapon" ? `공격력 +${it.atk}` : it.type === "potion" ? "HP +20" : it.name.includes("씨앗") ? "텃밭에 심기" : it.name === "나무 판자" ? "가구 재료" : it.name === "깨끗한 물" ? "마시거나 요리에" : it.name === "기름통" ? "발전기·랜턴 연료" : it.name === "배터리" ? "라디오에 넣는다" : it.name === "페트병" ? "물가에서 물 뜨기 · 1개씩" : it.name === "보온병" ? "물가에서 물 뜨기 · 3개씩" : "요리하면 음식"; html += `<div class="item"><span>${sw || (it.type === "hen" ? petIcon("hen") : ico(it.name))}${it.name}<small>${desc}</small></span><span class="btns">${priceOf(it) < it.price ? `<s class="k">${it.price}</s> ` : ""}${capTxt(priceOf(it))} <button onclick="buy(${i})" ${player.gold < priceOf(it) || (it.type === "hen" && !henRoom()) ? "disabled" : ""}>구매</button></span></div>`; });
   return html + choice("거래를 마친다", "mode='choices'; render()");
 }
 // =============== 작업대 창 (강화 · 분해 · 만들기) ===============
@@ -11376,8 +11400,8 @@ function renderAcctPop() {
   if (keep) { const e2 = [...el.querySelectorAll("input")].find(i => i.placeholder === keep.ph); if (e2) { e2.focus(); try { e2.setSelectionRange(keep.s, keep.s); } catch (e) {} } }
 }
 // 버전: 바뀌면 처음 열 때 업데이트 내용 창. 웹에 올린 판이면 version.json 을 10분마다 보고 새 판이 나오면 새로고침 창
-const GAME_VER = "2026.11.02-1";
-const PATCH_NOTES = ["꾸미기: 칸을 누르면 미리보기 → PC는 더블클릭, 폰은 A 단추로 확정", "전기: 발전기를 돌리면 밤에 쉘터 방마다 불이 켜지고 정신력이 참", "전기 효과 강화: 잠 1시간 덜·정신력 +10, 단련 가끔 ×2, 요리 15% 빠름, 공구대 +15%, 냉장고 30%", "발전기에 말 걸어 기름 붓기 · 발전기 위에 남은 기름 표시"];
+const GAME_VER = "2026.11.02-2";
+const PATCH_NOTES = ["야시장 상인이 밤마다 벽지 1 · 바닥재 1씩 팜 (한 번 사면 계속 씀)", "벽지·바닥재: 처음엔 기본 몇 개만, 이미 칠해 둔 건 그대로 가짐"];
 function updSeen() {
   const was = storeGet("rpg_ver"); storeSet("rpg_ver", GAME_VER);
   if (was && was !== GAME_VER) askOpen({ title: "업데이트됐어", lines: [`<span class="k">${GAME_VER}</span>`, `<ul class="updList">${PATCH_NOTES.map(t => `<li>${t}</li>`).join("")}</ul>`], go: ["확인", null], stay: "" });
