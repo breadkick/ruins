@@ -5669,7 +5669,7 @@ function totalAtk() { let a = (player.atk + weaponAtk() + (player.buff ? player.
 
 // =============== 턴 ===============
 const POOL_REGEN = 20;   // 10시간마다 뒤질 거리 하나
-function poolMax(id) { const t = places[id].type; if (places[id].pool) return places[id].pool; return (t === "water" || t === "dock" || t === "radiation") ? 2 : 3; }
+function poolMax(id) { if (places[id].pool) return places[id].pool; return 3; }   // 장소마다 3번 (아침이면 다시 꽉, 그 사이엔 10시간마다 하나씩)
 // 수색·잠수·채광을 할 수 있는 곳 (시도할 때마다 1씩 줄고 POOL_REGEN턴마다 1씩 다시 참)
 function harvestKind(id) { const t = places[id].type; if (!lootTable(id).length) return null; return ["water", "dock"].includes(t) ? "건질" : t === "radiation" ? "캘" : SEARCH_TYPES.includes(t) ? "뒤질" : null; }
 function poolAt(id) { return world.pools[id] === undefined ? poolMax(id) : world.pools[id]; }
@@ -5694,7 +5694,7 @@ function passTime(n = 1) {
     if (player.hunger === 0 && hr) { starved++; if (player.hp > 1) player.hp = Math.max(1, player.hp - 2); }
     const ph = turn % DAY_LEN;
     if (ph === NIGHT_START) { log(`<span class="danger">밤이 됐다. 놈들이 활발해진다.</span>`); if (n === 1) sfx("night"); }
-    if (ph === 0) { log("날이 밝았다."); petMorning(); coopMorning(); mateMorning(); if (n === 1) sfx("morning"); }
+    if (ph === 0) { log("날이 밝았다."); world.pools = {}; /* 아침이면 모든 장소 뒤질 거리가 다시 꽉 참 */ petMorning(); coopMorning(); mateMorning(); if (n === 1) sfx("morning"); }
     if (turn % POOL_REGEN === 0) { let any = false; for (const id in world.pools) { world.pools[id] = Math.min(poolMax(id), world.pools[id] + 1); if (world.pools[id] >= poolMax(id)) delete world.pools[id]; any = true; } if (any) log("어딘가에 다시 뒤질 만한 게 쌓였다."); }
     if (hr) world.base.farm.forEach(plot => { if (!plot || plot.ready) return; if (tsFarming()) plot.wetEver = true; plot.g = plotG(plot) + (isWet(plot) ? 2 : 1) + (job("farmer") && turn % (4 * HR) === 0 ? 1 : 0) + (tsFarming() && turn % (2 * HR) === 0 ? 1 : 0); if (plot.g >= crops[plot.seed].turns) { plot.ready = true; log(`<span class="buff">텃밭의 ${plantOf(plot.seed)}${jo(plantOf(plot.seed), "이", "가")} 다 자랐다.</span>`); noteFarm(); } });
     burnFuel(); if (hr) burnLantern(); sanTick(); mateTick(); noteTick(ph);
@@ -11281,8 +11281,8 @@ function renderAcctPop() {
   if (keep) { const e2 = [...el.querySelectorAll("input")].find(i => i.placeholder === keep.ph); if (e2) { e2.focus(); try { e2.setSelectionRange(keep.s, keep.s); } catch (e) {} } }
 }
 // 버전: 바뀌면 처음 열 때 업데이트 내용 창. 웹에 올린 판이면 version.json 을 10분마다 보고 새 판이 나오면 새로고침 창
-const GAME_VER = "2026.11.01-4";
-const PATCH_NOTES = ["안쪽 방이 있는 장소: 방마다 하루 3번 수색", "월드챗에서 이름을 누르면 신분증 · 친구 추가", "월드챗은 하루 지난 글이 사라짐", "시작할 때 계정 창 · 업데이트 알림", "지도 아이콘 두 번 누르면 바로 이동"];
+const GAME_VER = "2026.11.01-5";
+const PATCH_NOTES = ["모든 장소: 아침이 되면 뒤질 거리가 다시 3번으로 꽉 참", "물가·방사능 장소도 3번", "안쪽 방이 있는 장소: 방마다 하루 3번 수색"];
 function updSeen() {
   const was = storeGet("rpg_ver"); storeSet("rpg_ver", GAME_VER);
   if (was && was !== GAME_VER) askOpen({ title: "업데이트됐어", lines: [`<span class="k">${GAME_VER}</span>`, `<ul class="updList">${PATCH_NOTES.map(t => `<li>${t}</li>`).join("")}</ul>`], go: ["확인", null], stay: "" });
