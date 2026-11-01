@@ -5922,11 +5922,12 @@ function warnGo(rs, go) {
 let ASK = null;   // 확인 팝업 { title, lines, go: [글, 할 일], stay }
 function askOpen(o) { ASK = o; renderAsk(); }
 function askClose() { const f = ASK && ASK.onStay; ASK = null; renderAsk(); if (f) f(); }   // onStay: 그만둘 때 할 일 (있으면)
+function askNo() { const f = ASK && ASK.no; ASK = null; renderAsk(); if (f) f(); }   // no: 아니오 단추만 (바깥 누르기·Esc 는 그냥 닫기)
 function askGo() { const f = ASK && ASK.go[1]; ASK = null; renderAsk(); if (f) f(); }
 function renderAsk() {
   const el = document.getElementById("askPop"); if (!el) return;
   if (!ASK) { el.classList.remove("show"); el.innerHTML = ""; return; }
-  el.innerHTML = `<div class="askBox" onclick="event.stopPropagation()"><div class="askTitle">${ASK.title}</div>${ASK.lines.map(t => `<p>${t}</p>`).join("")}<div class="askBtns"><button class="askGo" onclick="askGo()">${ASK.go[0]}</button>${ASK.stay ? `<button onclick="askClose()">${ASK.stay}</button>` : ""}</div></div>`;
+  el.innerHTML = `<div class="askBox" onclick="event.stopPropagation()"><div class="askTitle">${ASK.title}</div>${ASK.lines.map(t => `<p>${t}</p>`).join("")}<div class="askBtns"><button class="askGo" onclick="askGo()">${ASK.go[0]}</button>${ASK.stay ? `<button onclick="${ASK.no ? "askNo()" : "askClose()"}">${ASK.stay}</button>` : ""}</div></div>`;
   el.classList.add("show");
 }
 // 이동: 경로가 몇 곳을 지나든, 걸리는 시간·기력은 가는 곳의 지역으로 정해짐 (배고픔은 흐른 시간만큼 줄어듦: 1시간에 1)
@@ -8680,7 +8681,7 @@ function renderCards() {
   const L = myCards();
   let h = `<div class="sub">받은 명함 <span class="k">${L.length}장</span></div>`;
   const on = cloudOn();
-  h += `<div class="item ncTools"><span>${on ? `<small>내 번호 ${cardNoTxt(idc().no)}</small>` : ""}</span><span class="btns"><button onclick="friendAddAsk()">번호로 받기</button><button onclick="cardPasteAsk()">코드 붙여 넣기</button>${on && L.some(c => c.uid) ? `<button onclick="friendRefresh()" ${cloud.busy ? "disabled" : ""}>새로 고침</button>` : ""}</span></div>`;
+  h += `<div class="item ncTools"><span>${on ? `<small>내 번호 ${cardNoTxt(idc().no)}</small>` : ""}</span><span class="btns"><button onclick="friendAddAsk()">친구 요청</button><button onclick="cardPasteAsk()">코드 붙여 넣기</button>${on && L.some(c => c.uid) ? `<button onclick="friendRefresh()" ${cloud.busy ? "disabled" : ""}>새로 고침</button>` : ""}</span></div>`;
   if (cloud.msg && cloud.busy === "" && tab === "bond" && cloud.ctx === "card") h += `<p class="setNote${cloud.bad ? " danger" : " buff"}">${cloud.msg}</p>`;
   if (!L.length) return h + `<p class="empty">아직 받은 명함이 없다.</p>`;
   return h + L.map((c, i) => { const fm = friendMateOf(c);
@@ -8707,7 +8708,7 @@ function renderMe() {
     const c = typeof meFriend === "object" ? meFriend : myCards()[meFriend]; if (!c) { meOpen = false; meFriend = null; el.classList.remove("show"); el.innerHTML = ""; return; }
     const ani = meIn ? " in" : ""; meIn = false; const peek = typeof meFriend === "object", isFr = peek && c.uid && myCards().some(x => x.uid === c.uid);
     el.innerHTML = `<div class="me idWrap idFriend${ani}" id="idCard" role="dialog" aria-label="${idEsc(c.n)}의 신분증"><button class="meX" onclick="closeMe()" title="닫기 (Esc)">×</button>${idCardHTML(c)}
-      <div class="idCtl"><small class="idGot">${peek ? (isFr ? "친구" : "월드챗에서 본 신분증") : `받은 명함 · ${c.got + 1}일째에 받음${c.re != null && c.re !== c.got ? ` · ${c.re + 1}일째에 새로 받음` : ""}`}</small>${peek && !isFr && c.uid ? `<button onclick="friendAddUid('${c.uid}', '${c.no}')">친구 추가</button>` : ""}<button onclick="closeMe()">닫기</button></div></div>`;
+      <div class="idCtl"><small class="idGot">${peek ? (isFr ? "친구" : "월드챗에서 본 신분증") : `받은 명함 · ${c.got + 1}일째에 받음${c.re != null && c.re !== c.got ? ` · ${c.re + 1}일째에 새로 받음` : ""}`}</small>${peek && !isFr && c.uid ? `<button onclick="friendAddUid('${c.uid}', '${c.no}')">친구 요청</button>` : ""}<button onclick="closeMe()">닫기</button></div></div>`;
     return;
   }
   if (meFlip) {   // 뒷면: 칸에 적는 중이면 다시 그리지 않음 (글자·커서가 날아가지 않게)
@@ -9049,8 +9050,9 @@ function battleLogHTML() {
 function renderPlaceTab() {
   if (!selectedPlace) return `<div class="empty">지도에서 장소를 클릭하면 정보가 보여.</div>`;
   const id = selectedPlace, p = places[id], st = stateOf(id), here = id === world.current;
-  if (st === "unknown") return `<h3>미지의 장소</h3><p class="empty">아직 아무것도 모른다. 가까운 곳을 먼저 가보자.</p>`;
-  const t = { ...typeInfo[p.type], ...(p.label ? { label: p.label, icon: "▣" } : {}) }, dangerTxt = ["안전", "낮음", "보통", "높음", "매우 높음", "치명적"][p.danger];
+  const dangerTxt = `${p.danger} · ${["안전", "낮음", "보통", "높음", "매우 높음", "치명적"][p.danger] || "?"}`;
+  if (st === "unknown") return `<h3>미지의 장소</h3><div class="tags"><span class="${p.danger >= 3 ? "danger" : ""}">위험 ${dangerTxt}</span></div><p class="empty">아직 아무것도 모른다. 가까운 곳을 먼저 가보자.</p>`;
+  const t = { ...typeInfo[p.type], ...(p.label ? { label: p.label, icon: "▣" } : {}) };
   let html = `<h3>${t.icon} ${p.wild && !isVisited(id) ? "미지의 길" : p.name}</h3><div class="tags"><span>${regions[p.region].name}</span><span>${t.label}</span><span class="${p.danger >= 3 ? "danger" : ""}">위험 ${dangerTxt}</span>${p.wild ? `<span class="wildTag">${p.depth}번째 걸음${flags().wildBest ? ` · 최고 ${flags().wildBest}` : ""}</span>` : ""}${["water", "dock"].includes(p.type) ? `<span class="fishTag">낚시 · ${fishWater(id) === "sea" ? "바다" : "민물"}</span>` : ""}</div>`;
   if (here && monster) return html + `<p class="danger">${monName()}${jo(monster.name, "과", "와")} 교전 중.</p>` + battleLogHTML();   // 싸움은 무대 아래 버튼으로
   if (st === "known") html += `<p class="empty">가본 적 없다. 이름만 들었다.</p>`;
@@ -9088,7 +9090,7 @@ function renderPlaceTab() {
   if (p.type === "light") html += lighthouseLit() ? `<p class="buff">등대에 불이 켜져 있다. (${world.lighthouse - dayNo() + 1}일)</p>` : choice("등대에 불을 켠다", "lightLighthouse()", "기름통 1");
   if (p.facilities && p.facilities.includes("shop")) html += choice("거래한다", "mode='shop'; render()", `사기 · 팔기 · ${capTxt(player.gold)}`);
   for (const k of npcHere(id)) html += choice(`${NPCS[k].name}에게 말을 건다`, `talkNpc('${k}')`, k === "wanderer" && world.req && !world.req.done && world.req.day !== undefined ? `부탁: ${world.req.n} ${world.req.k}개` : "");
-  if (p.type === "shelter") html += choice("작업대를 쓴다", "openWB()", "강화 · 분해 · 만들기") + choice("요리한다", "openCook()", `취사 ${RANKS[rankOf("취사")]}`) + choice(`${facName("bed")}에서 잔다`, "sleep()", sleepHint()) + choice("단련한다", "drillMenu()", `한 번에 ${dur(DRILL_TURNS)}`) + (job("medic") ? choice("몸을 추스른다", "medicRest()", `의무관 · HP 가득 + ${dur(8)} 회복`, "", "medicRest") : "") + choice("마당으로 나간다", "travelTo('yard')")
+  if (p.type === "shelter") html += choice("작업대를 쓴다", "openWB()", "강화 · 분해 · 만들기") + choice("요리한다", "openCook()", `취사 ${RANKS[rankOf("취사")]}`) + (!realFire() && !(campLeft() > 0) ? choice("모닥불을 피운다", "lightCamp()", `나무 판자 ${itemCount("나무 판자")}/2 · 요리 ${CAMP_USES}번`) : "") + choice(`${facName("bed")}에서 잔다`, "sleep()", sleepHint()) + choice("단련한다", "drillMenu()", `한 번에 ${dur(DRILL_TURNS)}`) + (job("medic") ? choice("몸을 추스른다", "medicRest()", `의무관 · HP 가득 + ${dur(8)} 회복`, "", "medicRest") : "") + choice("마당으로 나간다", "travelTo('yard')")
     + ["main", "kitchen", "living"].filter(r => r !== curRoom() && (r === "main" || roomLv() >= ROOM_SETS[r].lv)).map(r => choice(`${ROOM_NAMES[r]}${jo(ROOM_NAMES[r], "으로", "로")} 간다`, `enterRoom('${r}')`, "시간 안 듦")).join("");
   if (p.type === "yard") html += (isNight() ? choice("귀를 기울인다", "drill('sense')", `감각 단련 · ${drillNote("sense")}`) : "") + choice("단련한다", "drillMenu()", `한 번에 ${dur(DRILL_TURNS)}`) + choice("쉘터로 들어간다", "travelTo('shelter')") + (placeOpen("pen") ? choice("뒤뜰로 간다", "travelTo('pen')") : "");
   if (p.type === "pen") { const C = coop(); html += (C.hens && C.fed !== dayNo() ? choice("모이를 준다", "coopFeed()", feedHave() >= feedNeed() ? `곡식 ${feedNeed()}개` : "곡식 부족") : "") + (C.eggs ? choice("달걀을 꺼낸다", "eggTake()", `${C.eggs}개`) : "") + choice("마당으로 나간다", "travelTo('yard')"); }
@@ -10608,7 +10610,7 @@ function renderChatSec() {
   const on = cloudOn(), n = on ? chatNewCount() : 0;
   return `<div class="sub">채팅</div><div class="item ncTools"><span>${n ? `<small class="warn">새 글 ${n}</small>` : ""}</span><span class="btns"><button onclick="chatOpenPop('world')" ${on ? "" : "disabled"}>월드챗${chatUnread("world") ? " ●" : ""}</button></span></div>`;
 }
-function renderBondTab() { if (cloudOn()) friendSync(); return renderMates() + renderPets() + renderNeighbors() + renderGuildSec() + renderChatSec() + renderCards(); }
+function renderBondTab() { if (cloudOn()) friendSync(); return renderMates() + renderPets() + renderNeighbors() + renderGuildSec() + renderChatSec() + renderFreq() + renderCards(); }
 function renderNeighbors() {
   const N = Object.keys(NPCS);
   let h = `<div class="sub">이웃 <span class="k">${N.filter(npcMet).length}/${N.length}명</span></div>`;
@@ -10810,7 +10812,7 @@ function cloudInit() {
     cloud.user = u ? { uid: u.uid, email: u.email || "", anon: !!u.isAnonymous } : null;
     if (u) storeSet(CLOUD_FLAG, "1");
     if (first) { first = false; cloudCbs.splice(0).forEach(f => f && f(true)); }
-    if (!u) { for (const r in chatWatch) chatWatch[r](); chatWatch = {}; chatLast = {}; if (chatRef) { chatRef.off(); chatRef = null; } chatMsgs = []; guildUnsub(); guildFlag(); } else { guildLoad().then(() => guildTouch()); chatWatchAll(); if (chatDock && !chatRef) { if (!chatRooms().some(([r]) => r === chatRoom)) chatRoom = "world"; chatSub(chatRoom); } }
+    if (!u) { for (const r in chatWatch) chatWatch[r](); chatWatch = {}; chatLast = {}; if (chatRef) { chatRef.off(); chatRef = null; } chatMsgs = []; guildUnsub(); guildFlag(); freqUnwatch(); } else { guildLoad().then(() => guildTouch()); chatWatchAll(); freqWatch(); if (chatDock && !chatRef) { if (!chatRooms().some(([r]) => r === chatRoom)) chatRoom = "world"; chatSub(chatRoom); } }
     render();
   });
 }
@@ -10881,16 +10883,43 @@ function cardPut(c) {   // 받은 명함 목록에 넣거나 새 내용으로 (�
 function friendAddAsk() {
   if (!cloudOn()) { askOpen({ title: "번호로 받기", lines: ["설정 → 계정에서 로그인해 두면 친구 주민증 번호만으로 명함을 받고, 친구 쪽 진행에 맞춰 명함이 저절로 새로워져."], go: ["알겠어", null], stay: "" }); return; }
   friendDraft = "";
-  askOpen({ title: "친구 번호로 받기", lines: [`<input class="acctIn" placeholder="07-xxxx-xxxx" inputmode="numeric" oninput="friendDraft = this.value" onkeydown="if (event.key === 'Enter') askGo()" aria-label="친구 주민증 번호">`, `<small class="k">친구 신분증의 No. 번호. 받으면 서로 친구가 돼.</small>`], go: ["받기", friendAddGo], stay: "그만둔다" });
+  askOpen({ title: "친구 요청 보내기", lines: [`<input class="acctIn" placeholder="07-xxxx-xxxx" inputmode="numeric" oninput="friendDraft = this.value" onkeydown="if (event.key === 'Enter') askGo()" aria-label="친구 주민증 번호">`, `<small class="k">친구 신분증의 No. 번호. 상대가 수락하면 서로 명함을 받아.</small>`], go: ["요청 보내기", friendAddGo], stay: "그만둔다" });
   setTimeout(() => { const el = document.querySelector("#askPop .acctIn"); if (el) el.focus(); }, 30);
 }
+// 친구 요청: 번호로 보내면 freq/{상대}/{나} 에 쌓이고, 상대가 수락하면 서로 친구 + 서로 명함을 받음. 거절하면 지움
 function friendAddGo() { cloudDo("친구 찾는 중…", async () => {
   const no = friendDraft.replace(/\D/g, ""); if (no.length !== 10) throw { code: "fr/no" }; if (no === idc().no) throw { code: "fr/me" };
   const sn = await firebase.database().ref("codes/" + no).get(); if (!sn.exists()) throw { code: "fr/nobody" };
-  const uid = sn.val(), c = await friendCardFetch(uid); if (!c) throw { code: "fr/nobody" };
-  const me = cloud.user.uid, now = Date.now(); await firebase.database().ref(`friends/${me}/${uid}`).set({ no, at: now }); await firebase.database().ref(`friends/${uid}/${me}`).set({ no: idc().no, at: now });
-  const fresh = cardPut(c); log(`<span class="buff">${c.n}의 명함을 받았다. 서로 친구가 됐다.</span>`); saveGame(); chatWatchAll(); render(); cardView(myCards().findIndex(x => x.uid === uid));
-  return fresh ? `${c.n}의 명함을 받았어.` : `${c.n}의 명함을 새 내용으로 바꿨어.`; }); }
+  const uid = sn.val(), me = cloud.user.uid, D = firebase.database();
+  const f = await D.ref(`friends/${me}/${uid}`).get(); if (f.exists() && myCards().some(x => x.uid === uid)) return "이미 친구야.";
+  const back = await D.ref(`freq/${me}/${uid}`).get();
+  if (back.exists()) { const n = await friendAccept(uid, back.val(), true); return `${n}도 요청을 보냈었어. 바로 친구가 됐어.`; }
+  const c = await friendCardFetch(uid); if (!c) throw { code: "fr/nobody" };
+  await D.ref(`freq/${uid}/${me}`).set({ no: idc().no, n: player.name, at: Date.now() });
+  log(`${c.n}에게 친구 요청을 보냈다.`); render();
+  return `${c.n}에게 친구 요청을 보냈어. 수락하면 서로 명함을 받아.`; }); }
+let freqList = {}, freqRef = null, freqShown = {};
+function freqWatch() { freqUnwatch(); if (!cloudOn()) return; freqRef = firebase.database().ref("freq/" + cloud.user.uid);
+  freqRef.on("value", sn => { freqList = sn.exists() ? sn.val() || {} : {}; for (const k in freqShown) if (!freqList[k]) delete freqShown[k]; freqPopNext(); if (tab === "bond") render(); }); }
+function freqUnwatch() { if (freqRef) { freqRef.off(); freqRef = null; } freqList = {}; freqShown = {}; }
+function freqPopNext() {   // 받은 요청을 하나씩 창으로 (다른 창·전투·캐릭터 만들기 중이면 나중에)
+  if (ASK || monster || creating || dlg) { clearTimeout(freqPopNext.t); freqPopNext.t = setTimeout(freqPopNext, 3000); return; }
+  const k = Object.keys(freqList).find(x => !freqShown[x]); if (!k) return; freqShown[k] = 1; const r = freqList[k] || {};
+  askOpen({ title: "친구 요청", lines: [`${idEsc(r.n || "누군가")}${jo(r.n || "누군가", "이", "가")} 친구 요청을 보냈어.`, `<small>주민증 번호 ${cardNoTxt(r.no || "")}</small>`],
+    go: ["수락", () => friendReqYes(k)], stay: "거절", no: () => friendReqNo(k) });   // 바깥 누르면 나중에 (인연 탭 목록에 남음)
+}
+async function friendAccept(uid, r, quiet) {   // 서로 friends 에 넣고, 명함 받기 (상대는 friendSync 로 내 명함을 받음)
+  const me = cloud.user.uid, D = firebase.database(), now = Date.now();
+  await D.ref(`friends/${me}/${uid}`).set({ no: r.no || "", at: now }); await D.ref(`friends/${uid}/${me}`).set({ no: idc().no, at: now });
+  await D.ref(`freq/${me}/${uid}`).remove(); D.ref(`freq/${uid}/${me}`).remove().catch(() => {});
+  const c = await friendCardFetch(uid); const n = c ? c.n : (r.n || "친구");
+  if (c) cardPut(c); log(`<span class="buff">${idEsc(n)}${jo(n, "과", "와")} 친구가 됐다. 서로 명함을 받았다.</span>`); saveGame(); chatWatchAll(); render(); return n;
+}
+function friendReqYes(uid) { const r = freqList[uid] || {}; cloudDo("친구 맺는 중…", async () => { const n = await friendAccept(uid, r); return `${n}${jo(n, "과", "와")} 친구가 됐어. 서로 명함을 받았어.`; }); }
+function friendReqNo(uid) { const r = freqList[uid] || {}; if (!cloudOn()) return; firebase.database().ref(`freq/${cloud.user.uid}/${uid}`).remove().catch(e => console.error(e)); log(`${idEsc(r.n || "누군가")}의 친구 요청을 거절했다.`); render(); }
+function renderFreq() { const K = Object.keys(freqList); if (!cloudOn() || !K.length) return "";
+  return `<div class="sub">친구 요청 <span class="k">${K.length}</span></div>` + K.map(k => { const r = freqList[k] || {};
+    return `<div class="item"><span><b>${idEsc(r.n || "누군가")}</b><small>${cardNoTxt(r.no || "")}</small></span><span class="btns"><button onclick="friendReqYes('${k}')" ${cloud.busy ? "disabled" : ""}>수락</button><button onclick="friendReqNo('${k}')">거절</button></span></div>`; }).join(""); }
 async function friendSync(force) {   // 친구 목록·받은 명함을 서버 내용으로 (1분에 한 번쯤. 인연 탭 열 때·시작할 때)
   if (!cloudOn() || friendBusy || (!force && Date.now() - friendSyncAt < 60000)) return; friendBusy = true; friendSyncAt = Date.now();
   try {
@@ -10898,7 +10927,7 @@ async function friendSync(force) {   // 친구 목록·받은 명함을 서버 �
     const uids = [...new Set([...Object.keys(F), ...L.filter(c => c.uid).map(c => c.uid)])]; let changed = 0;
     for (const uid of uids) { const c = await friendCardFetch(uid); if (!c) continue; const was = L.find(x => x.uid === uid || x.no === c.no);
       const old = was ? JSON.stringify([was.n, was.lv, was.tt, was.look, was.w, was.ph]) : ""; try { cardPut(c); } catch (e) { continue; }
-      if (!was) { changed++; note("mbond", `${c.n}${jo(c.n, "이", "가")} 나를 친구로 추가했다. 명함을 받았다.`, "fr:" + uid); log(`${c.n}의 명함을 받았다. (친구로 추가됨)`); }
+      if (!was) { changed++; note("mbond", `${c.n}${jo(c.n, "이", "가")} 친구 요청을 수락했다. 명함을 받았다.`, "fr:" + uid); log(`${c.n}의 명함을 받았다. (친구 요청 수락됨)`); }
       else if (old !== JSON.stringify([c.n, c.lv, c.tt, c.look, c.w, c.ph])) changed++; }
     if (changed) { saveGame(); render(); } chatWatchAll();
   } catch (e) { console.error(e); } finally { friendBusy = false; }
@@ -11131,7 +11160,7 @@ function guildMemberTalk(uid) {
   const fr = myCards().findIndex(x => x.uid === uid), lines = ["같은 길드니까 잘 지내 보자.", "공용 상자에 쓸 만한 거 있으면 넣어 둬.", "레이드 때 같이 가자.", "여기 벙커 생각보다 아늑하지?", "밖은 여전하더라. 조심해."];
   const ch = [];
   if (fr >= 0) ch.push(["명함을 본다", () => cardView(fr)]);
-  else if (c) ch.push(["친구로 받는다", () => { friendDraft = c.no; friendAddGo(); }, "명함 받고 서로 친구"]);
+  else if (c) ch.push(["친구 요청", () => { friendDraft = c.no; friendAddGo(); }, "수락하면 서로 명함"]);
   ch.push(["그만둔다"]);
   say([[who, `${pick(lines)}${c ? ` <span class="k">(Lv.${c.lv}${c.tt ? ` · ${idEsc(c.tt)}` : ""})</span>` : ""}`]], ch);
 }
@@ -11318,8 +11347,8 @@ function renderAcctPop() {
   if (keep) { const e2 = [...el.querySelectorAll("input")].find(i => i.placeholder === keep.ph); if (e2) { e2.focus(); try { e2.setSelectionRange(keep.s, keep.s); } catch (e) {} } }
 }
 // 버전: 바뀌면 처음 열 때 업데이트 내용 창. 웹에 올린 판이면 version.json 을 10분마다 보고 새 판이 나오면 새로고침 창
-const GAME_VER = "2026.11.01-10";
-const PATCH_NOTES = ["폐자재 야적장에서 천 조각도 나옴 (나무 판자·고철·천 조각)", "고침: 교전 화면이 안 뜨거나 가려지던 것", "보급 꾸러미 · 수색 음식 1.6배"];
+const GAME_VER = "2026.11.01-11";
+const PATCH_NOTES = ["친구 요청: 보내면 상대가 수락·거절 (수락하면 서로 명함 받음)", "쉘터 장소 메뉴에 '모닥불을 피운다' (나무 판자 2)", "지도: 모르는 곳도 위험도 표시 (숫자 + 글)"];
 function updSeen() {
   const was = storeGet("rpg_ver"); storeSet("rpg_ver", GAME_VER);
   if (was && was !== GAME_VER) askOpen({ title: "업데이트됐어", lines: [`<span class="k">${GAME_VER}</span>`, `<ul class="updList">${PATCH_NOTES.map(t => `<li>${t}</li>`).join("")}</ul>`], go: ["확인", null], stay: "" });
