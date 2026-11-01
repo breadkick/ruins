@@ -1090,10 +1090,12 @@
   <button id="logTag" onclick="toggleLogFull()">기록 ▴</button>
   <button id="noteTag" class="noteBell" onclick="toggleNotes()" title="알림"></button>
   <button id="chatTag" onclick="chatToggle()" title="채팅"></button>
+  <button id="newsTag" onclick="newsOpen()" title="업데이트 내역">공지</button>
   <div id="notePop" onclick="if (event.target === this) closeNotes()"><div class="npBox"></div></div>
 </div>
 <div id="stashPop" onclick="closeStash()"></div>
 <div id="askPop" onclick="askClose()"></div>
+<div id="newsPop" onclick="if (event.target === this) newsClose()"></div>
 <div id="acctPop"></div>
 <div id="wbPop" onclick="closeWB()"></div>
 <div id="cookPop" onclick="closeCook()"></div>
@@ -1432,7 +1434,7 @@ const UI_SRC = {"metal":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeC
   #dialog .dlgText, #log, .meSay, #content p, .meStat small, .empty { word-break: keep-all; overflow-wrap: anywhere; }
   .rar-rare { color: #7bb0c9; } .rar-unique { color: #c9a227; }
   #bookX { display: none; } #bookGrip { display: none; }
-  #logTag, #noteTag, #chatTag { display: none; }
+  #logTag, #noteTag, #chatTag, #newsTag { display: none; }
   /* 채팅 창: 월드챗 · 친구챗 */
   #chatPop { position: fixed; inset: 0; z-index: 39; display: none; align-items: center; justify-content: center; background: rgba(8, 7, 6, 0.7); padding: 14px; } #chatPop.show { display: flex; }
   .chatBox { width: min(540px, 100%); height: min(620px, 94vh); display: flex; flex-direction: column; background: var(--bg); border: 2px solid var(--line); box-shadow: 0 0 0 2px #000; }
@@ -1461,6 +1463,12 @@ const UI_SRC = {"metal":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeC
   .cdEmpty { color: var(--ink-dim); } .cdIn { display: flex; border-top: 1px solid var(--line); } .cdIn input { flex: 1; min-width: 0; font: inherit; font-size: 12px; padding: 4px 7px; color: var(--ink); background: none; border: none; } .cdIn input:focus { outline: none; background: #ffffff0a; }
   #chatDock.min .cdList, #chatDock.min .cdIn { display: none; }
   #chatDock.strip { flex-direction: row; align-items: center; gap: 6px; padding: 3px 8px; cursor: pointer; } #chatDock.strip .cdm { flex: 1; } #chatDock.strip .cdB { flex: none; color: var(--hazard); }
+  #hud .hNews { display: inline-flex; align-items: center; margin-right: 8px; font-weight: normal; color: var(--ink-dim); cursor: pointer; } #hud .hNews.has { color: var(--hazard); }
+  #newsPop { position: fixed; inset: 0; z-index: 66; display: none; align-items: center; justify-content: center; background: rgba(8, 7, 6, 0.7); padding: 14px; } #newsPop.show { display: flex; }
+  #newsPop .nwBox { width: min(560px, 100%); max-height: calc(100vh - 28px); display: flex; flex-direction: column; background: var(--panel); border: 2px solid var(--line); box-shadow: 0 0 0 2px #000; }
+  #newsPop .nwHead { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); color: var(--hazard); font-size: 15px; } #newsPop .nwHead button { font: inherit; font-size: 13px; background: none; color: var(--ink-dim); border: 1px solid var(--line); padding: 2px 10px; cursor: pointer; }
+  #newsPop .nwList { overflow-y: auto; padding: 6px 14px 14px; } #newsPop .nwVer { margin-top: 12px; } #newsPop .nwVer h4 { margin: 0 0 4px; font-size: 13px; font-weight: normal; color: var(--ink-dim); } #newsPop .nwVer.cur h4 { color: var(--hazard); }
+  #newsPop .nwVer ul { margin: 0; padding-left: 18px; } #newsPop .nwVer li { font-size: 13px; line-height: 1.55; color: var(--ink); margin-bottom: 2px; }
   #hud .hChat { display: inline-flex; align-items: center; margin-right: 8px; font-weight: normal; color: var(--ink-dim); cursor: pointer; } #hud .hChat.has { color: var(--hazard); }
   @media (max-width: 640px) { #chatPop { padding: 0; } .chatBox { width: 100%; height: 100%; border: none; box-shadow: none; } }
   body.skin-wood .chatBox, body.skin-cream .chatBox { --bg: #f8ecd0; --panel: #fffaf0; --panel2: #f4e4c4; --line: #e0c9a3; --ink: #4a3424; --ink-dim: #8f7258; box-shadow: none; border-color: #c9a27a; }
@@ -1730,6 +1738,8 @@ const UI_SRC = {"metal":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeC
     #logTag, #noteTag, #chatTag { display: block; position: absolute; left: var(--edge); bottom: var(--edge); z-index: 11; font-size: 12px; padding: 2px 10px; color: var(--ink-dim); background: #0d0c0ae6; }
     #logTag:hover, #noteTag:hover, #chatTag:hover { color: var(--hazard); border-color: var(--hazard); }
     #chatTag.has { color: var(--ink); }
+    #newsTag { display: block; position: absolute; bottom: var(--edge); z-index: 11; font-size: 12px; padding: 2px 10px; color: var(--ink-dim); background: #0d0c0ae6; } #newsTag:hover { color: var(--hazard); border-color: var(--hazard); } #newsTag.has { color: var(--hazard); }
+    body.talking #newsTag, body.fighting #newsTag { opacity: 0; pointer-events: none; }
     #chatDock.on { left: calc(var(--edge) + clamp(280px, 25vw, 420px) + 10px); right: calc(var(--edge) + var(--faceW) + 12px); bottom: var(--edge); width: auto; max-width: 340px; z-index: 11; box-shadow: 0 0 0 2px #000; }   /* 기록 말풍선과 얼굴 카드 사이. 자리가 모자라면 JS가 한 줄 띠로 */
     body.bookTall:not(.bookShut) #chatDock.on { right: calc(var(--rs) + var(--faceW) + 16px); }   /* 책을 길게 늘여 얼굴 카드가 책 왼쪽에 있을 때 */
     #chatDock.on.strip { max-width: none; width: auto; bottom: var(--edge); min-height: 24px; padding: 0 8px; font-size: 12px; }   /* 좁으면 기록·알림·채팅 단추 줄에 한 줄 띠로 */
@@ -4726,7 +4736,7 @@ function mateTier(m) { return m.aff >= 70 ? 2 : m.aff >= 30 ? 1 : 0; }
 function mateBound(m) { return !!m.bound || m.aff >= 100 || !!m.friend; }   // 친구 캐릭터는 안 떠남 (자기 쉘터가 있으니)
 function mateAff(m, d) { const t0 = mateTier(m), b0 = mateBound(m); m.aff = Math.max(0, Math.min(100, m.aff + d));
   if (relOf(m) && !m.route && !b0 && m.aff >= 100) m.aff = 99;   // 고백(70)을 지나야 100
-  if (relOf(m) && !m.route && t0 < 2 && mateTier(m) === 2) note("mbond", `${m.name}${jo(m.name, "이", "가")} 뭔가 할 말이 있는 눈치다. (쉘터에서 말 걸기)`);
+  if (relOf(m) && !m.route && t0 < 2 && mateTier(m) === 2 && !(m.gifts || {}).confNote && ((m.gifts || (m.gifts = {})).confNote = 1)) note("mbond", `${m.name}${jo(m.name, "이", "가")} 뭔가 할 말이 있는 눈치다. (쉘터에서 말 걸기)`);
   if (!b0 && m.aff >= 100) { m.bound = true; log(`<span class="buff">♥ ${m.name}${jo(m.name, "은", "는")} 이제 무슨 일이 있어도 곁에 남는다. (친밀도 100)</span>`); note("mbond", `${m.name}${jo(m.name, "은", "는")} 이제 굶어도 떠나지 않는다. (친밀도 100)`); } if (m.fixed === "mech" && mateTier(m) > t0) mechBpNotice(m); if (m.fixed === "ts" && mateTier(m) > t0) tsSeedNotice(m); }
 function mateMax(m) { if (m.friend && m.fs && m.fs.hp) return Math.max(18, Math.round(m.fs.hp)); return 18 + player.level * 3 + (spFight(m) ? 10 : 0) + (m.friend ? (m.lv || 1) * 2 : 0); }   // 친구 캐릭터는 친구의 최대 HP 그대로
 function mateAtk(m) { if (m.friend && m.fs && m.fs.atk) return Math.max(2, Math.round(m.fs.atk * 0.7)) + (mateTier(m) >= 2 ? 1 : 0); return 2 + Math.floor(player.level * 0.6) + (spFight(m) ? 2 : 0) + (mateTier(m) >= 2 ? 1 : 0) + (m.friend ? Math.floor((m.lv || 1) / 2) : 0) + mateWpnAtk(m); }   // 친구 캐릭터는 친구 공격력의 70% (제 무기 포함)
@@ -5159,11 +5169,11 @@ function mateJobOk(job) { return job === "farm" ? (hasFacility("farm") ? "" : "�
 function mateTalk(id) {
   const m = typeof id === "object" ? id : mateById(id); if (!m || monster || m.away) return;
   if (relEvent(m)) return;   // 고백(70) · 마무리(100)
-  const who = mateWho(m), ch = [], talked = (world.daily || {})["mchat_" + m.id] === dayNo(), mx = mateMax(m);
+  const who = mateWho(m), ch = [], talked = mateCdLeft(m, "chat") > 0, mx = mateMax(m);
   const lk = m.hurt ? "hurt" : m.starve ? "hungry" : isNight() && Math.random() < 0.5 ? "night" : "hi", line = mateSay(m, lk), who2 = mateWho(m, MATE_EXPR[lk]);
   if (relOf(m) && m.jealous) ch.push(["달래 준다", () => relSoothe(m), "질투를 풂 · 하루 한 번", "msoothe_" + m.id]);
-  ch.push(["이야기를 나눈다", () => mateChat(m), "정신력 회복 · 친해짐", "mchat_" + m.id]);
-  if (relOf(m)) ch.push(["선물을 준다", () => relGiftMenu(m), relGiftDone(m) ? "오늘은 줬다" : "하루 한 번 · 좋아하는 걸 주면 더 친해짐", "mgift_" + m.id]);
+  ch.push(["이야기를 나눈다", () => mateChat(m), mateCdTxt(m, "chat") || "정신력 회복 · 친해짐 · 30분에 한 번", !!mateCdLeft(m, "chat")]);
+  if (relOf(m)) ch.push(["선물을 준다", () => relGiftMenu(m), mateCdTxt(m, "gift") || "30분에 한 번 · 좋아하는 걸 주면 더 친해짐", !!mateCdLeft(m, "gift")]);
   if (atBase()) {
     ch.push(["일을 맡긴다", () => mateJobMenu(m), `지금: ${mateJobTxt(m)}`]);
     if (m.fixed === "ts" && tsSeeds().length) { const R = TS(), left = R.seedDay == null ? 0 : 3 - (dayNo() - R.seedDay); ch.push(["씨앗을 나눠 달라고 한다", () => tsSeedAsk(m), left > 0 ? `${left}일 뒤에 또` : `사흘에 한 번 · ${tsSeeds().join("·")}`]); }
@@ -5429,9 +5439,14 @@ function relQuestion(m) {
 }
 // 선물: 하루 한 번. 가방에 있는 것 중에서 (알게 된 좋아하는 것부터). 반응을 보면 인연 탭에 적힘
 function relPref(m, n) { const G = relOf(m).gift; return G.love.includes(n) ? "love" : G.like.includes(n) || (G.likeIf && G.likeIf(n)) ? "like" : G.dislike.includes(n) ? "dislike" : "neutral"; }
-function relGiftDone(m) { return (world.daily || {})["mgift_" + m.id] === dayNo(); }
+// 이야기·선물: 동료마다 현실 시간 30분에 한 번 (게임 날짜와 상관없이)
+const MATE_CD_MS = 30 * 60000;
+function mateCdLeft(m, k) { return Math.max(0, ((m.cd || {})[k] || 0) + MATE_CD_MS - Date.now()); }
+function mateCdUse(m, k) { (m.cd || (m.cd = {}))[k] = Date.now(); }
+function mateCdTxt(m, k) { const l = mateCdLeft(m, k); return l ? `${Math.ceil(l / 60000)}분 뒤에 다시` : ""; }
+function relGiftDone(m) { return mateCdLeft(m, "gift") > 0; }
 function relGiftMenu(m, pg = 0) {
-  if (relGiftDone(m)) { say([[mateWho(m, "laugh"), "오늘은 벌써 받았잖아. 마음만으로 충분해."]]); return; }
+  if (relGiftDone(m)) { say([[mateWho(m, "laugh"), `방금 받았잖아. 마음만으로 충분해. (${mateCdTxt(m, "gift")})`]]); return; }
   const K = m.gk || {}, rank = { love: 0, like: 1, undefined: 2, neutral: 3, dislike: 4 };
   const L = Object.keys(player.items).filter(n => itemCount(n) > 0 && player.items[n] > 0).sort((a, b) => rank[K[a]] - rank[K[b]] || a.localeCompare(b, "ko"));
   if (!L.length) { say([[null, "가방에 줄 만한 게 없다."]]); return; }
@@ -5441,7 +5456,7 @@ function relGiftMenu(m, pg = 0) {
 }
 function relGive(m, n) {
   if (!relOf(m) || relGiftDone(m) || itemCount(n) < 1 || monster) return;
-  const p = relPref(m, n), d = REL_GIFT_D[p]; removeItem(n, 1); daily("mgift_" + m.id); (m.gk || (m.gk = {}))[n] = p; mateAff(m, d);
+  const p = relPref(m, n), d = REL_GIFT_D[p]; removeItem(n, 1); mateCdUse(m, "gift"); (m.gk || (m.gk = {}))[n] = p; mateAff(m, d);
   const calm = m.jealous && (p === "love" || p === "like"); if (calm) m.jealous = false;
   const see = m.route === "love" ? [] : relLovers().filter(x => x !== m && relNear(x) && Math.random() < 0.6); see.forEach(x => relJealous(x, 2));
   say([[mateWho(m, p === "dislike" ? "worry" : p === "neutral" ? "base" : "laugh"), relOf(m).gift.say[p]], ...(calm ? [[null, `${m.name}의 표정이 조금 풀렸다.`]] : []), ...see.map(x => [mateWho(x, "worry"), relOf(x).cheat.gift])]);
@@ -5497,7 +5512,7 @@ function relPair(id) {
   say(relLines(null, lines)); log(`${A.name}${jo(A.name, "과", "와")} ${B.name}${jo(B.name, "이", "가")} 이야기를 나눈다.`); return true;
 }
 function mateChat(m) {
-  if (!daily("mchat_" + m.id)) { say([[mateWho(m), "오늘은 실컷 떠들었잖아. 내일 또 하자."]]); return; }
+  if (mateCdLeft(m, "chat")) { say([[mateWho(m), `방금 실컷 떠들었잖아. 좀 있다 또 하자. (${mateCdTxt(m, "chat")})`]]); return; } mateCdUse(m, "chat");
   const v = [4, 7, 10][mateTier(m)]; sanAdd(v); mateTailHold = true; mateAff(m, 4); mateTailHold = false;   // 친해져서 받는 것(씨앗·설계도)은 말 끝에 지문으로
   const S = (MATE_FIXED[m.fixed] || {}).story || MATE_STORY[m.story], need = [30, 60, 90][m.told];
   let lines;
@@ -5636,7 +5651,7 @@ function mateMorning() {
   for (const m of [...L]) {
     if (m.away) continue;
     const f = mateMeal();
-    if (f) { stashUse(f, 1); m.ate = dayNo(); m.starve = 0; mateAff(m, 1); ate.push(f); continue; }
+    if (f) { stashUse(f, 1); m.ate = dayNo(); m.starve = 0; ate.push(f); continue; }   // 아침밥: 친밀도는 안 오름 (굶으면 깎임)
     m.starve = (m.starve || 0) + 1; mateAff(m, -5);
     if (m.starve >= MATE_STARVE && !mateBound(m)) mateLeave(m, "hungry", hungry);
     else { hungry.push(`<span class="warn">${nm(m)} 아침을 굶었다. 쉘터 수납에 먹을 게 없다. (${m.starve}일째)</span>`); note("mhungry", `${nm(m)} 아침을 굶었다. 쉘터 수납에 먹을 게 없다. (${m.starve}일째)`, m.id); }
@@ -8976,7 +8991,7 @@ function renderStatus() {
   const o = player.origin && origins[player.origin], el = document.getElementById("hud");
   el.className = (view === "scene" ? "inScene" : "inMap") + (hudOpen ? "" : " min") + (creating ? " hide" : "");
   const hp = statPts() ? `<b class="hPts" onclick="event.stopPropagation(); openMe()" title="능력치 올리기">+${statPts()}</b>` : "";
-  if (!hudOpen) el.innerHTML = `<div class="hTop" onclick="toggleHud()" title="펼치기">${noteHudBtn()}${chatHudBtn()}<span>Lv.${player.level} · <span class="${pc}">HP ${player.hp}/${player.maxHp}</span> · <span class="${hc}">포만 ${player.hunger}</span>${sta() <= 50 ? ` · <span class="${staCls()}">기력 ${sta()}</span>` : ""}${san() < 50 ? ` · <span class="${sanCls()}">정신 ${san()}</span>` : ""}</span>${hp}<b class="hTog">▸</b></div>`;
+  if (!hudOpen) el.innerHTML = `<div class="hTop" onclick="toggleHud()" title="펼치기">${noteHudBtn()}${newsHudBtn()}${chatHudBtn()}<span>Lv.${player.level} · <span class="${pc}">HP ${player.hp}/${player.maxHp}</span> · <span class="${hc}">포만 ${player.hunger}</span>${sta() <= 50 ? ` · <span class="${staCls()}">기력 ${sta()}</span>` : ""}${san() < 50 ? ` · <span class="${sanCls()}">정신 ${san()}</span>` : ""}</span>${hp}<b class="hTog">▸</b></div>`;
   else el.innerHTML = `<div class="hTop" onclick="toggleHud()" title="접기">${chatHudBtn()}<span class="hFace">${portraitHTML(40, 2, 1)}${hp}</span><div class="hName" onclick="event.stopPropagation(); openMe()" title="내 정보">${player.name}${o ? `<small>${o.name}</small>` : ""}${player.title ? `<small>「${player.title}」</small>` : ""}</div>${noteHudBtn()}<b class="hTog">▾</b></div>
     <div class="barRow"><span class="${pc}">HP</span>${bar("hp", player.hp, player.maxHp)}<span class="val ${pc}">${player.hp}/${player.maxHp}</span></div>
     <div class="barRow"><span title="경험치">Lv.${player.level}</span>${bar("exp", player.exp, need)}<span class="val">${player.exp}/${need}</span></div>
@@ -9320,14 +9335,14 @@ function manualSections() {
       mwL([`자리: 기본 1명 + 간이 침낭(작업대, 천 조각 4) 하나마다 1명. 최대 ${MATE_MAX}명.`, "밥: 아침마다 쉘터 수납에서 한 끼씩 꺼내 먹는다 (쉬운 요리 → 통조림류 → 좋은 요리 → 달걀·채소). 사흘 굶으면 떠난다. 단, 친밀도 100을 한 번이라도 찍은 동료는 <b>끝까지 함께</b>해서 굶어도 떠나지 않는다 (친밀도는 깎임).",
         "데리고 다니기: 한 명. 교전에서 내 공격 뒤에 거들고 (80% 명중), 놈이 30% 확률로 동료에게 달려든다. HP가 0이 되면 다쳐서 쉘터에서 쉰다 (HP 60%까지 차면 다시 일어남).",
         "쉘터 안까지 쳐들어온 놈과 싸울 땐 집에 있는 동료가 거든다.", `<b>무기 쥐어 주기</b>: 말을 걸어 가방의 무기를 쥐어 줄 수 있다 (총 빼고). 특별한 동료도 받고, 장면 도트에도 손에 든 무기가 보인다 (진혁은 총을 들고 있어서 허리춤에 찬다). 무기 공격의 ${pct(MATE_WPN_MUL)}만큼 동료 공격이 오르고, 같이 싸워 맞힐 때마다 내구 -1. 다 닳으면 부러져서 안 오르니 돌려받아 고치자. 떠나면 무기는 두고 간다.`, "데리고 나간 동료는 상태 카드 옆(좁은 화면은 상태 줄)에 작게 뜬다. 누르면 인연 탭.", "이야기: 하루 한 번 정신력 +4/7/10 (어색함·친함·단짝), 친밀도 +4. 친밀도 30·60·90에 사연을 한 토막씩 들려준다.",
-        "친밀도: 데려오면 15. 이야기 +4 (하루 한 번), 아침밥을 먹으면 +1, 같이 싸워 이기면 하루 한 번 +2, 수색에서 돌아오면 +2, 굶으면 -5."]) +
+        "친밀도: 데려오면 15. 이야기 +4 (현실 시간 30분에 한 번), 같이 싸워 이기면 하루 한 번 +2, 수색에서 돌아오면 +2, 굶으면 -5. 아침밥은 친밀도가 오르지 않는다. 친해져서 받는 선물·고백 알림은 딱 한 번만."]) +
       `<p><b>특별한 동료와의 관계</b></p>` + mwL(["<b>고백</b>: 친밀도 70이 되면 쉘터에서 말 걸 때 마음을 털어놓는다. <b>연인</b>이 되거나 <b>평생 친구</b>가 되거나, 생각할 시간을 달라고 할 수 있다 (다음 날 다시 물어 옴). 고백을 지나야 친밀도가 100까지 오른다.",
         "친밀도 100이 되면 길마다 마무리 장면이 있다.",
         "<b>질투</b>: 연인이 보는 앞에서 (같이 쉘터에 있거나 데리고 나왔을 때) 다른 특별한 동료에게 선물하면 60% 확률로 질투한다 (친밀도 -2). 다른 동료와 둘만의 외출을 하고 돌아오면 쉘터에서 기다리던 연인이 따진다 (-3). 질투 중이면 인사가 바뀌고, 말 걸기의 <b>달래 준다</b>(하루 한 번, +2)나 좋아하는 선물로 풀린다.",
         "<b>연인 수</b>: 설정 → 캐릭터 → 연애에서 고른다. <b>한 명만</b>(처음)이면 이미 연인이 있을 때 다른 동료는 알아서 평생 친구가 된다. <b>양다리 허용</b>이면 이미 연인이 있어도 다른 동료의 고백을 받아 줄 수 있다 (몰래).",
         "<b>양다리</b>: 연인 둘 이상이 쉘터에 있으면 들어올 때 하루 한 번 30% 확률로 <b>들킨다</b>. 한 명을 고르면 다른 쪽은 친밀도 -15로 친구가 되고, 둘 다 좋다고 버티면 둘 다 -8에 <b>질투 중</b>이 된다 (60 아래로 떨어지면 그쪽은 헤어져 친구로). 질투는 좋아하는 선물을 주면 풀린다.",
         "<b>질문</b>: 이야기를 나누다 가끔 묻는다 (동료마다 5개). 마음에 드는 답이면 +6, 무난하면 +2, 서운하면 -2.",
-        `<b>선물</b>: 하루 한 번, 가방의 물건을 준다. 아주 좋아하는 것 +${REL_GIFT_D.love}, 좋아하는 것 +${REL_GIFT_D.like}, 그 밖엔 +${REL_GIFT_D.neutral}, 싫어하는 것 ${REL_GIFT_D.dislike}. 한 번 준 물건의 반응은 인연 탭에 적힌다.`,
+        `<b>선물</b>: 현실 시간 30분에 한 번, 가방의 물건을 준다. 아주 좋아하는 것 +${REL_GIFT_D.love}, 좋아하는 것 +${REL_GIFT_D.like}, 그 밖엔 +${REL_GIFT_D.neutral}, 싫어하는 것 ${REL_GIFT_D.dislike}. 한 번 준 물건의 반응은 인연 탭에 적힌다.`,
         "<b>같이 외출</b>: 친함(30)부터 데리고 나간 동료와 특정 장소에 가면 둘만의 장면 (동료마다 2곳, 하루 한 번, 친밀도 +6 · 정신력 +10).",
         "<b>동료끼리</b>: 쉘터에 특별한 동료가 둘 이상 있으면 들어올 때 가끔 둘이 이야기를 나눈다 (하루 한 번, 둘 다 친밀도 +1)."]) },
     { t: "친밀도와 이웃", body: () => mwL(["동료·펫·이웃의 친밀도는 대사창 이름 옆 하트(하나 = 20)와 <b>인연</b> 탭에서 본다. 30부터 친함, 70부터 단짝 (이웃은 단골).", "이웃(상인·의무병·떠돌이)은 처음 말을 걸면 만난 것으로 친다. 하루 한 번 말 걸면 +2. 30이면 친함, 70이면 단골."]) +
@@ -9935,7 +9950,7 @@ function render() {
   document.getElementById("content").innerHTML = tab === "bag" ? renderBag() : tab === "skills" ? renderSkills() : tab === "dex" ? renderDex() : tab === "settings" ? renderSettings() : tab === "manual" ? renderManual() : tab === "base" ? renderBase() : tab === "bond" ? renderBondTab() : renderPlaceTab();
   helpSubs();
   if (view === "scene" && selectedPlace) drawScene(selectedPlace);
-  renderBattle(); showCards(); renderPad(); renderStashPop(); renderGchestPop(); renderWB(); renderCookPop(); renderMe(); renderNotes(); chatTagRender(); chatDockRender(); gmTick(); if (acctPop) renderAcctPop();
+  renderBattle(); showCards(); renderPad(); renderStashPop(); renderGchestPop(); renderWB(); renderCookPop(); renderMe(); renderNotes(); chatTagRender(); newsTagRender(); chatDockRender(); gmTick(); if (acctPop) renderAcctPop();
   bgmUpdate(); saveGame();
 }
 
@@ -10861,6 +10876,7 @@ document.addEventListener("keydown", (e) => {
   if (cards.open) { if ([" ", "Enter", "Escape", "z", "Z"].includes(e.key)) { closeCards(); e.preventDefault(); } return; }
   if (ASK) { if (e.key === "Escape") { askClose(); e.preventDefault(); } else if (e.key === "Enter") { askGo(); e.preventDefault(); } return; }
   if (tradeOn()) return;   // 교환창이 열려 있으면 게임 조작 안 함
+  if (newsShown) { if (e.key === "Escape") { newsClose(); e.preventDefault(); } return; }
   if (stashPop) { if (e.key === "Escape") { closeStash(); e.preventDefault(); } return; }
   if (wbIsOpen()) { if (e.key === "Escape") { closeWB(); e.preventDefault(); } return; }
   if (cookIsOpen()) { if (e.key === "Escape") { closeCook(); e.preventDefault(); } return; }
@@ -11598,11 +11614,25 @@ function renderAcctPop() {
   if (keep) { const e2 = [...el.querySelectorAll("input")].find(i => i.placeholder === keep.ph); if (e2) { e2.focus(); try { e2.setSelectionRange(keep.s, keep.s); } catch (e) {} } }
 }
 // 버전: 바뀌면 처음 열 때 업데이트 내용 창. 웹에 올린 판이면 version.json 을 10분마다 보고 새 판이 나오면 새로고침 창
-const GAME_VER = "2026.11.02-9";
-const PATCH_NOTES = ["고침: 폰에서 선택지가 많으면 대사창 위가 잘리던 것 (장면 안에서 스크롤)", "고침: 이동 중 사건(떠돌이 상인 등)이 뜨면 거기서 멈춤 → 다음 곳 전투가 사건 대사창과 겹치지 않게", "N12·진혁·로우·태식은 떠나보내도 하루 뒤 처음 만난 곳에 돌아와 있음 (다시 데려오면 친밀도 -10, 기록 그대로)"];
+const GAME_VER = "2026.11.02-10";
+const PATCH_NOTES = ["공지 창: 지금까지 업데이트 내역을 볼 수 있음 (PC 왼쪽 아래 '공지' · 폰은 위쪽 알림 옆 '공지')", "친밀도: 아침밥으로는 안 오름 · 이야기와 선물은 동료마다 현실 시간 30분에 한 번", "고백 알림 같은 친밀도 구간 알림은 딱 한 번만"];
+const PATCH_LOG = [{"v": "2026.11.02-10", "notes": ["공지 창: 지금까지 업데이트 내역을 볼 수 있음 (PC 왼쪽 아래 '공지' · 폰은 위쪽 알림 옆 '공지')", "친밀도: 아침밥으로는 안 오름 · 이야기와 선물은 동료마다 현실 시간 30분에 한 번", "고백 알림 같은 친밀도 구간 알림은 딱 한 번만"]}, {"v": "2026.11.02-9", "notes": ["고침: 폰에서 선택지가 많으면 대사창 위가 잘리던 것 (장면 안에서 스크롤)", "고침: 이동 중 사건(떠돌이 상인 등)이 뜨면 거기서 멈춤 → 다음 곳 전투가 사건 대사창과 겹치지 않게", "N12·진혁·로우·태식은 떠나보내도 하루 뒤 처음 만난 곳에 돌아와 있음 (다시 데려오면 친밀도 -10, 기록 그대로)"]}, {"v": "2026.11.02-8", "notes": ["밤 습격: 발전기가 돌면 밤 10시·1시·4시마다 10% (바리케이드·펫·진혁으로 줄어듦)", "쉘터에 있으면 문 앞 교전(자다가 깨면 잔 만큼만 회복) · 밖에 있으면 수납 상자에서 2개쯤 털림", "N12 전기공 · 진혁 경계병 전용 특기"]}, {"v": "2026.11.02-7", "notes": ["N12 전용 특기 '전기공': 쉘터에 있으면 발전기 기름 이틀에 한 통 · 전기 가구 수리 재료 절반 · 친해지면 아침마다 배터리 · 단짝이면 공구대 +20%", "이진혁 전용 특기 '경계병': 쉘터에 있으면 밤 습격 절반 · 절반은 먼저 막아 줌 · 데리고 나가면 기습 -40% · 도주 +20% · 친해지면 사흘마다 탄약 3발"]}, {"v": "2026.11.02-6", "notes": ["거래 고침: 주고받는 도중 한쪽이 모자라서 취소돼도 물건이 사라지지 않게 (둘 다 준비된 뒤 한 번에 바꿈)", "거래 고침: 끝나지 않은 거래를 새 거래가 덮어쓰지 않게 · 새로고침해도 이어서 끝남", "거래 기록에 준 것·받은 것이 같이 남음"]}, {"v": "2026.11.02-5", "notes": ["고침: 동료 질문에 답하면 대답 대사만 뜨게 (친밀도·선물 글이 대사창에 또 뜨던 것)", "고침: 교환창 '확인'이 가끔 안 눌리던 것", "보온병으로 물을 뜨면 바로 깨끗한 물 3개 (요리에 바로 씀)"]}, {"v": "2026.11.02-4", "notes": ["거래: 친구 명함·월드챗 신분증·길드원에게 '거래' → 교환창에서 물건·캡을 올리고 둘 다 확인하면 교환", "고침: 유태식 씨앗·로우 설계도 선물이 친밀도가 오르내릴 때 다시 뜨던 것"]}, {"v": "2026.11.02-3", "notes": ["거래: 친구 명함·월드챗 신분증·길드원에게 '거래' → 교환창에서 물건·캡을 올리고 둘 다 확인하면 교환", "교환창: 올린 칸 누르면 1개 내림 · 바꾸면 둘 다 확인 풀림"]}, {"v": "2026.11.02-2", "notes": ["야시장 상인이 밤마다 벽지 1 · 바닥재 1씩 팜 (한 번 사면 계속 씀)", "벽지·바닥재: 처음엔 기본 몇 개만, 이미 칠해 둔 건 그대로 가짐"]}, {"v": "2026.11.02-1", "notes": ["꾸미기: 칸을 누르면 미리보기 → PC는 더블클릭, 폰은 A 단추로 확정", "전기: 발전기를 돌리면 밤에 쉘터 방마다 불이 켜지고 정신력이 참", "전기 효과 강화: 잠 1시간 덜·정신력 +10, 단련 가끔 ×2, 요리 15% 빠름, 공구대 +15%, 냉장고 30%", "발전기에 말 걸어 기름 붓기 · 발전기 위에 남은 기름 표시"]}, {"v": "2026.11.01-11", "notes": ["친구 요청: 보내면 상대가 수락·거절 (수락하면 서로 명함 받음)", "쉘터 장소 메뉴에 '모닥불을 피운다' (나무 판자 2)", "지도: 모르는 곳도 위험도 표시 (숫자 + 글)"]}, {"v": "2026.11.01-10", "notes": ["폐자재 야적장에서 천 조각도 나옴 (나무 판자·고철·천 조각)", "고침: 교전 화면이 안 뜨거나 가려지던 것", "보급 꾸러미 · 수색 음식 1.6배"]}, {"v": "2026.11.01-9", "notes": ["고침: 교전이 시작될 때 전투 화면·버튼이 가려지거나 안 뜨던 것 (안 뜨면 2초 안에 다시 그림)", "보급 꾸러미: 모두에게 한 번 들개 고기 2 · 나무 판자 2", "수색에서 먹을 것이 더 잘 나옴"]}, {"v": "2026.11.01-8", "notes": ["보급 꾸러미: 모두에게 한 번 들개 고기 2 · 나무 판자 2", "수색에서 먹을 것이 더 잘 나옴 (1.6배)", "이동 시간·기력이 위치로 정해짐 · 장소 안에서 걷는 건 시간이 안 듦"]}, {"v": "2026.11.01-7", "notes": ["고침: 수색 중 사건(쓰러진 생존자 등)이 뜰 때 대사가 '…획득'으로 바뀌어 보이던 것", "이동 시간·기력이 위치로 정해짐: 쉘터 근처 2시간 · 시가지 3시간 · 공장 지대 4시간 · 항구 5시간", "장소 안에서 걷는 건 시간이 안 듦"]}, {"v": "2026.11.01-6", "notes": ["이동 시간이 위치로 정해짐: 쉘터 근처 2시간 · 시가지 3시간 · 공장 지대 4시간 · 항구 5시간 (같은 지역 안은 1시간)", "기력도 위치에 따라: 6 · 10 · 14 · 18", "배고픔은 흐른 시간만큼 (1시간에 1)", "장소 안에서 걷는 건 시간이 안 듦", "아침이면 모든 장소 뒤질 거리가 3번으로 다시 참"]}, {"v": "2026.11.01-5", "notes": ["모든 장소: 아침이 되면 뒤질 거리가 다시 3번으로 꽉 참", "물가·방사능 장소도 3번", "안쪽 방이 있는 장소: 방마다 하루 3번 수색"]}, {"v": "2026.11.01-4", "notes": ["안쪽 방이 있는 장소: 방마다 하루 3번 수색", "월드챗에서 이름을 누르면 신분증 · 친구 추가", "월드챗은 하루 지난 글이 사라짐", "시작할 때 계정 창 · 업데이트 알림", "지도 아이콘 두 번 누르면 바로 이동"]}];   // 지난 업데이트 내역 (최신이 앞) · 공지 창
+// 공지 (업데이트 내역): PC는 왼쪽 아래 '공지', 폰은 위 알림 옆 '공지'. 안 본 업데이트가 있으면 노랗게
+let newsShown = false;
+function newsUnseen() { return storeGet("rpg_newsSeen") !== GAME_VER; }
+function newsHudBtn() { return `<b class="hNews${newsUnseen() ? " has" : ""}" onclick="event.stopPropagation(); newsOpen()" title="업데이트 내역">공지</b>`; }
+function newsOpen() { newsShown = true; storeSet("rpg_newsSeen", GAME_VER); renderNews(); newsTagRender(); renderStatus && renderStatus(); }
+function newsClose() { newsShown = false; renderNews(); }
+function renderNews() { const el = document.getElementById("newsPop"); if (!el) return; el.classList.toggle("show", newsShown); if (!newsShown) { el.innerHTML = ""; return; }
+  const L = PATCH_LOG.some(x => x.v === GAME_VER) ? PATCH_LOG : [{ v: GAME_VER, notes: PATCH_NOTES }, ...PATCH_LOG];
+  el.innerHTML = `<div class="nwBox" role="dialog" aria-label="업데이트 내역"><div class="nwHead"><span>업데이트 내역</span><button onclick="newsClose()">닫기</button></div><div class="nwList">${L.map(x => `<div class="nwVer${x.v === GAME_VER ? " cur" : ""}"><h4>${x.v}${x.v === GAME_VER ? " · 지금 버전" : ""}</h4><ul>${x.notes.map(t => `<li>${t}</li>`).join("")}</ul></div>`).join("")}</div></div>`; }
+function newsTagRender() { const t = document.getElementById("newsTag"); if (!t) return; t.classList.toggle("has", newsUnseen());
+  const c = document.getElementById("chatTag"), b = document.getElementById("noteTag"), prev = c && c.offsetParent && c.offsetWidth ? c : b && b.offsetParent && b.offsetWidth ? b : null;
+  t.style.display = prev ? "" : "none"; if (prev) t.style.left = `${prev.offsetLeft + prev.offsetWidth + 6}px`;
+  document.querySelectorAll("#hud .hNews").forEach(e => { e.outerHTML = newsHudBtn(); }); }
 function updSeen() {
   const was = storeGet("rpg_ver"); storeSet("rpg_ver", GAME_VER);
-  if (was && was !== GAME_VER) askOpen({ title: "업데이트됐어", lines: [`<span class="k">${GAME_VER}</span>`, `<ul class="updList">${PATCH_NOTES.map(t => `<li>${t}</li>`).join("")}</ul>`], go: ["확인", null], stay: "" });
+  if (was && was !== GAME_VER) askOpen({ title: "업데이트됐어", lines: [`<span class="k">${GAME_VER}</span>`, `<ul class="updList">${PATCH_NOTES.map(t => `<li>${t}</li>`).join("")}</ul>`, `<small class="k">지난 내역은 ‘공지’에서 볼 수 있어.</small>`], go: ["확인", null], stay: "" });
 }
 let updShown = "";
 async function updPoll() {
