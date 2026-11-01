@@ -6717,12 +6717,21 @@ function bClose() {
 }
 function renderBattle() {
   if (monster && (view !== "scene" || selectedPlace !== world.current)) { selectedPlace = world.current; showScene(world.current); }
+  if (monster) {   // 교전 중엔 전투 화면을 가리는 것들을 치움: 선택지 없는 대사창 · 채팅 창 · 공용 상자 · 계정 창
+    if (dlg && !dlg.choices) closeDialog(); if (chatOpen) { chatOpen = false; chatRender(); } if (gchestOpen) gchestOpen = false; if (acctPop) { acctPop = false; renderAcctPop(); }
+  }
   const el = document.getElementById("battle");
   if (monster && !B.open) bOpen(false);
   document.body.classList.toggle("fighting", !!B.open);
   if (!B.open) { if (el.className) { el.className = ""; el.innerHTML = ""; } return; }
   bLayout(); bHud(); bActs(); bFitBg(); bPlay();
 }
+// 안전망: 교전 중인데 전투 화면이나 버튼이 안 보이면 다시 그림 (2초마다)
+setInterval(() => {
+  if (!monster || creating) return; const el = document.getElementById("battle"), ok = el && el.classList.contains("show") && el.querySelector(".bActs button") && el.querySelector(".bStage");
+  if (ok || (B.playing && el && el.classList.contains("show"))) return;
+  try { console.warn("전투 화면 다시 그림"); if (dlg && !dlg.choices) closeDialog(); selectedPlace = world.current; showScene(world.current); if (!B.open) bOpen(false); B.built = ""; B.playing = false; B.q = []; renderBattle(); } catch (e) { console.error(e); }
+}, 2000);
 window.addEventListener("resize", () => { if (B.open) { bLayout(); bHud(); bActs(); bFitBg(); } if (DIG.on && ["ready", "done"].includes(DIG.phase)) digBuild(); });
 
 function monPic(name, box = 52) {
@@ -11309,8 +11318,8 @@ function renderAcctPop() {
   if (keep) { const e2 = [...el.querySelectorAll("input")].find(i => i.placeholder === keep.ph); if (e2) { e2.focus(); try { e2.setSelectionRange(keep.s, keep.s); } catch (e) {} } }
 }
 // 버전: 바뀌면 처음 열 때 업데이트 내용 창. 웹에 올린 판이면 version.json 을 10분마다 보고 새 판이 나오면 새로고침 창
-const GAME_VER = "2026.11.01-8";
-const PATCH_NOTES = ["보급 꾸러미: 모두에게 한 번 들개 고기 2 · 나무 판자 2", "수색에서 먹을 것이 더 잘 나옴 (1.6배)", "이동 시간·기력이 위치로 정해짐 · 장소 안에서 걷는 건 시간이 안 듦"];
+const GAME_VER = "2026.11.01-9";
+const PATCH_NOTES = ["고침: 교전이 시작될 때 전투 화면·버튼이 가려지거나 안 뜨던 것 (안 뜨면 2초 안에 다시 그림)", "보급 꾸러미: 모두에게 한 번 들개 고기 2 · 나무 판자 2", "수색에서 먹을 것이 더 잘 나옴"];
 function updSeen() {
   const was = storeGet("rpg_ver"); storeSet("rpg_ver", GAME_VER);
   if (was && was !== GAME_VER) askOpen({ title: "업데이트됐어", lines: [`<span class="k">${GAME_VER}</span>`, `<ul class="updList">${PATCH_NOTES.map(t => `<li>${t}</li>`).join("")}</ul>`], go: ["확인", null], stay: "" });
