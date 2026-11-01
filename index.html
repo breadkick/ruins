@@ -4832,9 +4832,12 @@ function mechMate() { return mates().find(m => m.fixed === "mech") || null; }
 // 정비사 설계도: 친해질수록 작업대 무기 목록에 새 무기가 생김 (1 = 친함, 2 = 단짝)
 const MECH_BP = { 1: "드릴 창", 2: "엔진 톱" };
 function bpOpen(t) { const m = mechMate(); return !!m && mateTier(m) >= t; }
+// 친해져서 한 번 주는 선물: 세계 기록 · 동료 · 플레이어 세 군데에 다 적어 둠 (어느 하나가 빠져도 다시 안 줌)
+function giftGot(m, key, W) { const P = player.gifts || (player.gifts = {}), M = m.gifts || (m.gifts = {}); return !!(W[key.slice(-1)] || M[key] || P[key]); }
+function giftMark(m, key, W) { (player.gifts || (player.gifts = {}))[key] = 1; (m.gifts || (m.gifts = {}))[key] = 1; W[key.slice(-1)] = true; }
 function mechBpNotice(m) {
   const R = MECH(), B = R.bp || (R.bp = {});
-  for (const t of [1, 2]) if (mateTier(m) >= t && !B[t]) { B[t] = true; log(`<span class="buff">${m.name}${jo(m.name, "이", "가")} 설계도를 그려 줬다: ${MECH_BP[t]} (작업대 · 무기)</span>`); note("bp", `${m.name}의 설계도: ${MECH_BP[t]} · 작업대에서 만들 수 있다`);
+  for (const t of [1, 2]) if (mateTier(m) >= t && !giftGot(m, "bp" + t, B)) { giftMark(m, "bp" + t, B); log(`<span class="buff">${m.name}${jo(m.name, "이", "가")} 설계도를 그려 줬다: ${MECH_BP[t]} (작업대 · 무기)</span>`); note("bp", `${m.name}의 설계도: ${MECH_BP[t]} · 작업대에서 만들 수 있다`);
     mateTailSay([[null, `${m.name}${jo(m.name, "이", "가")} 기름 묻은 종이에 설계도를 쓱쓱 그려 건넸다. ‘단골 서비스야.’`], [null, { text: `(설계도: ${MECH_BP[t]} · 작업대에서 만들 수 있다)`, cls: "buff" }]]); }
 }
 // 무기 개조: 정비사에게 손에 든 무기를 맡겨 능력치를 붙임. 칸은 하나(단짝이면 둘). 무기를 바꾸면 사라짐 (강화처럼)
@@ -4930,7 +4933,8 @@ let mateTail = [], mateTailHold = false;
 function mateTailSay(lines) { mateTail.push(...lines); if (!mateTailHold) say(mateTail.splice(0)); }
 function tsSeedNotice(m) {
   const R = TS(), G = R.seed || (R.seed = {});
-  for (const t of [1, 2]) if (mateTier(m) >= t && !G[t]) { G[t] = true; gain(TS_SEED[t], 3, true); log(`<span class="buff">${m.name}${jo(m.name, "이", "가")} 씨앗 봉투를 툭 던져 줬다: ${TS_SEED[t]} 3개 (남는 거라 주는 거래)</span>`); note("tseed", `${m.name}의 씨앗: ${TS_SEED[t]} 3개 · 텃밭에 심을 수 있다`);
+  for (const t of [1, 2]) if (mateTier(m) >= t && !giftGot(m, "seed" + t, G)) { const had = player.seen && player.seen[TS_SEED[t]]; giftMark(m, "seed" + t, G); if (had) continue;   // 예전에 이미 받은 씨앗이면 조용히 표시만
+    gain(TS_SEED[t], 3, true); log(`<span class="buff">${m.name}${jo(m.name, "이", "가")} 씨앗 봉투를 툭 던져 줬다: ${TS_SEED[t]} 3개 (남는 거라 주는 거래)</span>`); note("tseed", `${m.name}의 씨앗: ${TS_SEED[t]} 3개 · 텃밭에 심을 수 있다`);
     mateTailSay([[null, `${m.name}${jo(m.name, "이", "가")} 씨앗 봉투를 툭 던져 줬다. ‘남는 거라 주는 거야!’ 하곤 일하러 돌아갔다.`], [null, { text: `(${TS_SEED[t]} 3개를 받았다.)`, cls: "buff" }]]); }
 }
 function tsSeedAsk(m) {
@@ -11535,8 +11539,8 @@ function renderAcctPop() {
   if (keep) { const e2 = [...el.querySelectorAll("input")].find(i => i.placeholder === keep.ph); if (e2) { e2.focus(); try { e2.setSelectionRange(keep.s, keep.s); } catch (e) {} } }
 }
 // 버전: 바뀌면 처음 열 때 업데이트 내용 창. 웹에 올린 판이면 version.json 을 10분마다 보고 새 판이 나오면 새로고침 창
-const GAME_VER = "2026.11.02-3";
-const PATCH_NOTES = ["거래: 친구 명함·월드챗 신분증·길드원에게 '거래' → 교환창에서 물건·캡을 올리고 둘 다 확인하면 교환", "교환창: 올린 칸 누르면 1개 내림 · 바꾸면 둘 다 확인 풀림"];
+const GAME_VER = "2026.11.02-4";
+const PATCH_NOTES = ["거래: 친구 명함·월드챗 신분증·길드원에게 '거래' → 교환창에서 물건·캡을 올리고 둘 다 확인하면 교환", "고침: 유태식 씨앗·로우 설계도 선물이 친밀도가 오르내릴 때 다시 뜨던 것"];
 function updSeen() {
   const was = storeGet("rpg_ver"); storeSet("rpg_ver", GAME_VER);
   if (was && was !== GAME_VER) askOpen({ title: "업데이트됐어", lines: [`<span class="k">${GAME_VER}</span>`, `<ul class="updList">${PATCH_NOTES.map(t => `<li>${t}</li>`).join("")}</ul>`], go: ["확인", null], stay: "" });
