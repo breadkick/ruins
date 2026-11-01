@@ -4111,7 +4111,7 @@ const itemDefs = {
   "깨끗한 물":        { rarity: "common", action: "마시기", use: () => eat("깨끗한 물", EAT_FX["깨끗한 물"]), note: "요리 재료 · 그냥 마셔도 됨" },
   "흙탕물":           { rarity: "common", action: "마시기", use: () => drinkDirty(), note: "끓이거나 걸러야 마실 만하다" },
   "페트병":           { rarity: "common", note: "물 뜨는 도구 · 1개씩" },
-  "보온병":           { rarity: "rare",   note: "물 뜨는 도구 · 3개씩" },
+  "보온병":           { rarity: "rare",   note: "물 뜨는 도구 · 바로 깨끗한 물 3개씩 (요리에 바로)" },
   "약초 차":          { rarity: "common", action: "먹기", use: () => eat("약초 차", EAT_FX["약초 차"]) },
   "감자 수프":        { rarity: "common", action: "먹기", use: () => eat("감자 수프", EAT_FX["감자 수프"]) },
   "고기 구이":        { rarity: "rare",   action: "먹기", use: () => eat("고기 구이", EAT_FX["고기 구이"]) },
@@ -4837,8 +4837,7 @@ function giftGot(m, key, W) { const P = player.gifts || (player.gifts = {}), M =
 function giftMark(m, key, W) { (player.gifts || (player.gifts = {}))[key] = 1; (m.gifts || (m.gifts = {}))[key] = 1; W[key.slice(-1)] = true; }
 function mechBpNotice(m) {
   const R = MECH(), B = R.bp || (R.bp = {});
-  for (const t of [1, 2]) if (mateTier(m) >= t && !giftGot(m, "bp" + t, B)) { giftMark(m, "bp" + t, B); log(`<span class="buff">${m.name}${jo(m.name, "이", "가")} 설계도를 그려 줬다: ${MECH_BP[t]} (작업대 · 무기)</span>`); note("bp", `${m.name}의 설계도: ${MECH_BP[t]} · 작업대에서 만들 수 있다`);
-    mateTailSay([[null, `${m.name}${jo(m.name, "이", "가")} 기름 묻은 종이에 설계도를 쓱쓱 그려 건넸다. ‘단골 서비스야.’`], [null, { text: `(설계도: ${MECH_BP[t]} · 작업대에서 만들 수 있다)`, cls: "buff" }]]); }
+  for (const t of [1, 2]) if (mateTier(m) >= t && !giftGot(m, "bp" + t, B)) { giftMark(m, "bp" + t, B); log(`<span class="buff">${m.name}${jo(m.name, "이", "가")} 설계도를 그려 줬다: ${MECH_BP[t]} (작업대 · 무기)</span>`); note("bp", `${m.name}의 설계도: ${MECH_BP[t]} · 작업대에서 만들 수 있다`); }
 }
 // 무기 개조: 정비사에게 손에 든 무기를 맡겨 능력치를 붙임. 칸은 하나(단짝이면 둘). 무기를 바꾸면 사라짐 (강화처럼)
 const WMODS = {
@@ -4934,8 +4933,7 @@ function mateTailSay(lines) { mateTail.push(...lines); if (!mateTailHold) say(ma
 function tsSeedNotice(m) {
   const R = TS(), G = R.seed || (R.seed = {});
   for (const t of [1, 2]) if (mateTier(m) >= t && !giftGot(m, "seed" + t, G)) { const had = player.seen && player.seen[TS_SEED[t]]; giftMark(m, "seed" + t, G); if (had) continue;   // 예전에 이미 받은 씨앗이면 조용히 표시만
-    gain(TS_SEED[t], 3, true); log(`<span class="buff">${m.name}${jo(m.name, "이", "가")} 씨앗 봉투를 툭 던져 줬다: ${TS_SEED[t]} 3개 (남는 거라 주는 거래)</span>`); note("tseed", `${m.name}의 씨앗: ${TS_SEED[t]} 3개 · 텃밭에 심을 수 있다`);
-    mateTailSay([[null, `${m.name}${jo(m.name, "이", "가")} 씨앗 봉투를 툭 던져 줬다. ‘남는 거라 주는 거야!’ 하곤 일하러 돌아갔다.`], [null, { text: `(${TS_SEED[t]} 3개를 받았다.)`, cls: "buff" }]]); }
+    addItem(TS_SEED[t], 3); log(`<span class="buff">${m.name}${jo(m.name, "이", "가")} 씨앗 봉투를 툭 던져 줬다: ${TS_SEED[t]} 3개 (남는 거라 주는 거래)</span>`); note("tseed", `${m.name}의 씨앗: ${TS_SEED[t]} 3개 · 텃밭에 심을 수 있다`); }   // 기록 한 줄만 (대사창·카드로 또 띄우지 않음)
 }
 function tsSeedAsk(m) {
   const R = TS(), L = tsSeeds(); if (!L.length) return;
@@ -5411,7 +5409,7 @@ function relSet(m, r, auto) {
 function relQuestion(m) {
   const R = relOf(m), i = m.qn || 0; if (!R || !R.q[i] || Math.random() >= 0.6) return false;
   const [q, A] = R.q[i]; m.qn = i + 1;
-  say([[mateWho(m, "base"), q]], A.map(([a, d, r, ex]) => [a, () => { mateAff(m, d); say([[mateWho(m, ex), r]]); log(`${m.name}${jo(m.name, "이", "가")} ${d > 2 ? "기뻐한다" : d > 0 ? "고개를 끄덕인다" : "조금 서운해 보인다"}. (친밀도 ${d > 0 ? "+" : ""}${d} → ${m.aff})`); render(); }]));
+  say([[mateWho(m, "base"), q]], A.map(([a, d, r, ex]) => [a, () => { logQuiet(() => { mateAff(m, d); log(`${m.name}${jo(m.name, "이", "가")} ${d > 2 ? "기뻐한다" : d > 0 ? "고개를 끄덕인다" : "조금 서운해 보인다"}. (친밀도 ${d > 0 ? "+" : ""}${d} → ${m.aff})`); }); say([[mateWho(m, ex), r]]); render(); }]) /* 대답 대사만 띄움 (친밀도·선물은 기록에) */);
   return true;
 }
 // 선물: 하루 한 번. 가방에 있는 것 중에서 (알게 된 좋아하는 것부터). 반응을 보면 인연 탭에 적힘
@@ -7532,11 +7530,14 @@ function openCook() { tab = "place"; mode = "cook"; selectedPlace = world.curren
 // 페트병(1개씩)·보온병(3개씩)은 물뿌리개처럼 안 닳는 도구. 물가(수로·부두·침몰선)에서 뜨면 흙탕물 → 불에 끓이거나 정수 필터로 걸러 깨끗한 물
 function waterCap() { return (itemCount("보온병") ? 3 : 0) + (itemCount("페트병") ? 1 : 0); }
 function waterTool() { return ["보온병", "페트병"].filter(n => itemCount(n)).join("·"); }
-function waterHint() { const k = waterCap(); return k ? `${waterTool()} · 흙탕물 +${k} · ${dur(1)}` : "담을 병이 없다"; }
+function waterHint() { const c = itemCount("보온병") ? 3 : 0, m = itemCount("페트병") ? 1 : 0; return c || m ? `${waterTool()} · ${[c ? `깨끗한 물 +${c}` : "", m ? `흙탕물 +${m}` : ""].filter(Boolean).join(" · ")} · ${dur(1)}` : "담을 병이 없다"; }
 function scoopWater() {
   if (monster) return; const k = waterCap();
   if (!k) { log("담을 게 없다. 페트병이나 보온병이 있어야 물을 뜰 수 있다."); render(); return; }
-  tick(); staAdd(-1); gain("흙탕물", k); log(`${waterTool()}에 물을 떴다. 탁하다. 흙탕물 +${k}`); render();
+  // 보온병: 거름망 달린 뚜껑으로 걸러 담아서 바로 깨끗한 물 (요리에 바로 씀) · 페트병: 흙탕물 (끓이거나 걸러야 함)
+  const c = itemCount("보온병") ? 3 : 0, m = itemCount("페트병") ? 1 : 0; tick(); staAdd(-1);
+  if (c) gain("깨끗한 물", c); if (m) gain("흙탕물", m);
+  log(`${waterTool()}에 물을 떴다.${c ? ` 보온병 뚜껑 거름망으로 걸렀다. 깨끗한 물 +${c}` : ""}${m ? ` 페트병 물은 탁하다. 흙탕물 +${m}` : ""}`); render();
 }
 function boilWater(all) {
   if (monster || !canFire()) return; const have = itemCount("흙탕물"); if (!have) { log("끓일 흙탕물이 없다."); render(); return; }
@@ -8578,6 +8579,7 @@ function logIcon(html) {
   return put(hit && hit[1] ? hit[1] : `<span class="lDot">·</span>`);
 }
 let battleLog = [];   // 지금 교전에서 나온 기록 { bt: 몇 번째 행동(0 = 나타남), msg } → 옆 창 "교전 중" 아래에 보여 줌
+function logQuiet(fn) { const c = logCapture; logCapture = null; try { fn(); } finally { logCapture = c; } }   // 기록에만 남기고 대사창 페이지로는 안 띄움
 function log(msg) { if (logCapture) logCapture.push(msg); try { if (monster) battleLog.push({ bt: monster.bt || 0, msg }); } catch (e) {} const b = document.getElementById("log"); const l = document.createElement("div"); l.innerHTML = logIcon(msg); b.appendChild(l); while (b.children.length > 80) b.removeChild(b.firstChild); b.scrollTop = b.scrollHeight; }
 // 내 정보 카드: 캐릭터 · 막대 · 능력치(+1) · 착용 · 스킬 랭크. 얼굴 카드를 누르면 뜸
 let meOpen = false, meFlash = null, meIn = false;
@@ -9491,7 +9493,7 @@ function renderShop() {
   let html = `<div class="sub">${places[world.current].night ? places[world.current].name : "암시장"} · 가진 돈 ${capTxt(player.gold)}</div>${onSale() && !places[world.current].night ? `<p class="buff">오늘은 특가 날이다. 물건이 25% 싸다. (무기 빼고)</p>` : ""}<div class="subTabs">${[["buy", "사기"], ["sell", "팔기"]].map(([k, l]) => `<button class="${shopTab === k ? "on" : ""}" onclick="shopTab='${k}'; render()">${l}</button>`).join("")}</div>`;
   if (shopTab === "sell") return html + renderSell() + choice("거래를 마친다", "mode='choices'; render()");
   curShop().forEach((it, i) => { const sw = it.type === "paper" ? `<span class="paper shopSw"><i style="${it.idx ? `background-position:${-(it.idx - 1) * 64}px -12px` : "background:#8b847b"}"></i></span>` : it.type === "floor" ? `<span class="paper shopSw"><i class="fl" style="background-position:${-INDOOR_FLOORS[it.idx][0] * 64}px -2px"></i></span>` : "";
-    const desc = it.type === "paper" || it.type === "floor" ? `오늘만 · 꾸미기 ${it.type === "paper" ? "벽지" : "바닥"} · 한 번 사면 계속 씀` : it.type === "hen" ? henShopNote() : it.type === "rumor" ? "숨은 것에 대한 소문 하나" : it.night ? `${it.today ? "오늘만 · " : ""}${USE_HINT[it.name] || (itemDefs[it.name] || {}).note || ""}` : it.type === "weapon" ? `공격력 +${it.atk}` : it.type === "potion" ? "HP +20" : it.name.includes("씨앗") ? "텃밭에 심기" : it.name === "나무 판자" ? "가구 재료" : it.name === "깨끗한 물" ? "마시거나 요리에" : it.name === "기름통" ? "발전기·랜턴 연료" : it.name === "배터리" ? "라디오에 넣는다" : it.name === "페트병" ? "물가에서 물 뜨기 · 1개씩" : it.name === "보온병" ? "물가에서 물 뜨기 · 3개씩" : "요리하면 음식"; html += `<div class="item"><span>${sw || (it.type === "hen" ? petIcon("hen") : ico(it.name))}${it.name}<small>${desc}</small></span><span class="btns">${priceOf(it) < it.price ? `<s class="k">${it.price}</s> ` : ""}${capTxt(priceOf(it))} <button onclick="buy(${i})" ${player.gold < priceOf(it) || (it.type === "hen" && !henRoom()) ? "disabled" : ""}>구매</button></span></div>`; });
+    const desc = it.type === "paper" || it.type === "floor" ? `오늘만 · 꾸미기 ${it.type === "paper" ? "벽지" : "바닥"} · 한 번 사면 계속 씀` : it.type === "hen" ? henShopNote() : it.type === "rumor" ? "숨은 것에 대한 소문 하나" : it.night ? `${it.today ? "오늘만 · " : ""}${USE_HINT[it.name] || (itemDefs[it.name] || {}).note || ""}` : it.type === "weapon" ? `공격력 +${it.atk}` : it.type === "potion" ? "HP +20" : it.name.includes("씨앗") ? "텃밭에 심기" : it.name === "나무 판자" ? "가구 재료" : it.name === "깨끗한 물" ? "마시거나 요리에" : it.name === "기름통" ? "발전기·랜턴 연료" : it.name === "배터리" ? "라디오에 넣는다" : it.name === "페트병" ? "물가에서 물 뜨기 · 1개씩" : it.name === "보온병" ? "물가에서 바로 깨끗한 물 3개씩" : "요리하면 음식"; html += `<div class="item"><span>${sw || (it.type === "hen" ? petIcon("hen") : ico(it.name))}${it.name}<small>${desc}</small></span><span class="btns">${priceOf(it) < it.price ? `<s class="k">${it.price}</s> ` : ""}${capTxt(priceOf(it))} <button onclick="buy(${i})" ${player.gold < priceOf(it) || (it.type === "hen" && !henRoom()) ? "disabled" : ""}>구매</button></span></div>`; });
   return html + choice("거래를 마친다", "mode='choices'; render()");
 }
 // =============== 작업대 창 (강화 · 분해 · 만들기) ===============
@@ -11005,7 +11007,7 @@ function renderFreq() { const K = Object.keys(freqList); if (!cloudOn() || !K.le
 // 신청: treq/{상대}/{나} → 상대가 수락하면 trade/{두 uid} 를 만들고 tlive/{각자} = 그 id → 둘 다 교환창이 열림
 // 칸마다 가방 물건을 올리고(누르면 1개씩), 캡도 올림. 무엇이든 바뀌면 둘 다 확인이 풀림. 둘 다 확인하면: 각자 자기 것을 빼고(paid) → 상대 것을 받음(recv) → 끝
 const TRADE_SLOTS = 8, TRADE_REQ_MS = 180000;
-let tradeId = null, tradeRef = null, tradeLiveRef = null, treqRef = null, tradeD = null, treqList = {}, treqShown = {}, tradeBusy = false, tradeCapsDraft = "";
+let tradeMsg = "", tradeId = null, tradeRef = null, tradeLiveRef = null, treqRef = null, tradeD = null, treqList = {}, treqShown = {}, tradeBusy = false, tradeCapsDraft = "";
 function tradeOn() { return !!(tradeId && tradeD && (tradeD.state === "open" || tradeD.state === "pay")); }
 function tradeMe() { return tradeD && cloud.user ? tradeD[cloud.user.uid] || {} : {}; }
 function tradeOther() { if (!tradeD || !cloud.user) return {}; const k = [tradeD.a, tradeD.b].find(u => u !== cloud.user.uid); return tradeD[k] || {}; }
@@ -11040,7 +11042,7 @@ async function tradeAccept(uid) {
 // 올리기·내리기 (내 쪽만). 바뀌면 둘 다 확인 풀림
 function tradeEdit(fn) {
   if (!tradeOn() || tradeD.state !== "open" || tradeBusy) return; const me = cloud.user.uid;
-  tradeRef.transaction(T => { if (!T || T.state !== "open" || !T[me]) return; const M = T[me]; M.items = M.items || []; fn(M); T[T.a].ok = false; T[T.b].ok = false; return T; }).catch(e => console.error(e));
+  tradeRef.transaction(T => { if (T === null) return null; if (T.state !== "open" || !T[me]) return; const M = T[me]; M.items = M.items || []; fn(M); T[T.a].ok = false; T[T.b].ok = false; return T; }).catch(e => console.error(e));
 }
 function tradeAdd(n) { const have = bagHas(n); if (!have) return; if (n === player.weapon.name && have <= 0) return;
   tradeEdit(M => { const L = M.items, j = L.findIndex(x => x[0] === n); if (j >= 0) { if (L[j][1] < have) L[j][1]++; } else if (L.length < TRADE_SLOTS) L.push([n, 1]); }); }
@@ -11049,13 +11051,13 @@ function tradeTake(j) { tradeEdit(M => { const L = M.items; if (!L[j]) return; i
 function tradeCaps(v) { const k = Math.max(0, Math.min(player.gold, Math.floor(+v || 0))); tradeCapsDraft = ""; tradeEdit(M => { M.caps = k; }); }
 function tradeOk() {
   if (!tradeOn() || tradeD.state !== "open") return; const me = cloud.user.uid;
-  if (!tradeMe().ok && !tradeHave()) { log("올린 물건이 가방에 모자라다."); render(); return; }
-  tradeRef.transaction(T => { if (!T || T.state !== "open") return; T[me].ok = !T[me].ok; if (T[T.a].ok && T[T.b].ok) T.state = "pay"; return T; }).catch(e => console.error(e));
+  if (!tradeMe().ok && !tradeHave()) { tradeMsg = "올린 물건이나 캡이 가방에 모자라. 칸을 눌러 줄여 줘."; renderTrade(); return; } tradeMsg = "";
+  tradeRef.transaction(T => { if (T === null) return null; if (T.state !== "open" || !T[me]) return; T[me].ok = !T[me].ok; if (T[T.a].ok && T[T.b].ok) T.state = "pay"; return T; }).catch(e => console.error(e));
 }
 function tradeCancel() {
   if (!tradeId) return; const id = tradeId, D = firebase.database(), ou = tradeD && tradeOtherUid();
   if (tradeD && tradeD.state === "pay") { log("이미 주고받는 중이라 취소할 수 없다."); render(); return; }
-  tradeRef.transaction(T => { if (!T || T.state !== "open") return; T.state = "cancel"; return T; }).then(() => {
+  tradeRef.transaction(T => { if (T === null) return null; if (T.state !== "open") return; T.state = "cancel"; return T; }).then(() => {
     D.ref("tlive/" + cloud.user.uid).remove().catch(() => {}); if (ou) D.ref("tlive/" + ou).remove().catch(() => {}); }).catch(e => console.error(e));
   if (!tradeD || tradeD.state !== "pay") { tradeSub(null); log("거래를 그만뒀다."); render(); }
 }
@@ -11070,7 +11072,7 @@ async function tradeStep() {
   tradeBusy = true;
   try {
     if (!M.paid && !TG[sid + ":paid"]) {
-      if (!tradeHave()) { await tradeRef.transaction(T => { if (!T || T.state !== "pay" || T[me].paid) return; T.state = "cancel"; return T; }); return; }
+      if (!tradeHave()) { await tradeRef.transaction(T => { if (T === null) return null; if (T.state !== "pay" || T[me].paid) return; T.state = "cancel"; return T; }); return; }
       const WD = player.wdur || (player.wdur = {}), wd = {};
       for (const [n, k] of M.items || []) { removeItemBag(n, k); if (WD[n] && WD[n].length > bagHas(n)) wd[n] = WD[n].splice(0, WD[n].length - bagHas(n)); }
       player.gold -= M.caps || 0; TG[sid + ":paid"] = 1; saveGame();
@@ -11085,8 +11087,8 @@ async function tradeStep() {
       log(`<span class="buff">${idEsc(O.n || "상대")}${jo(O.n || "상대", "과", "와")} 거래했다.${got.length ? ` 받은 것: ${got.join(", ")}` : ""}</span>`); sfx && sfx("buy");
     } else if (O.paid && !M.recv && TG[sid + ":recv"]) await firebase.database().ref(`trade/${tradeId}/${me}`).update({ recv: true });
     const T = (await tradeRef.get()).val();
-    if (T && T[T.a].recv && T[T.b].recv) { await tradeRef.transaction(X => { if (!X) return; X.state = "done"; return X; }); }
-    if (T && T.state === "done" || (T && T[T.a].recv && T[T.b].recv)) { await D.ref("tlive/" + me).remove(); setTimeout(() => { if (T.a === me) D.ref("trade/" + tradeIdOf(T)).remove().catch(() => {}); }, 4000); for (const k in TG) if (k.startsWith(tradeIdOf(T) + ":") && !k.startsWith(sid)) delete TG[k]; tradeSub(null); render(); }
+    if (T && T[T.a].recv && T[T.b].recv) { await tradeRef.transaction(X => { if (X === null) return null; X.state = "done"; return X; }); }
+    if (T && T.state === "done" || (T && T[T.a].recv && T[T.b].recv)) { await D.ref("tlive/" + me).remove(); setTimeout(() => { D.ref("trade/" + tradeIdOf(T)).transaction(X => X === null || X.state === "done" ? null : undefined).catch(() => {}); }, 3000); for (const k in TG) if (k.startsWith(tradeIdOf(T) + ":") && !k.startsWith(sid)) delete TG[k]; tradeSub(null); render(); }
   } catch (e) { console.error(e); } finally { tradeBusy = false; }
   if (tradeD && tradeD.state === "pay") setTimeout(tradeStep, 600);
 }
@@ -11109,7 +11111,7 @@ function renderTrade() {
       <div class="trOk ${M.ok ? "on" : ""}">내 확인 ${M.ok ? "✓ 확인함" : "· 아직"}</div></section></div>
     ${pay ? `<p class="trNote buff">둘 다 확인했다. 주고받는 중…</p>` : `<div class="trBag"><div class="trBagHead">내 가방 <small class="k">누르면 1개씩 올림 · 올린 칸을 누르면 1개 내림</small></div><div class="trBagList">${bag.length ? bag.map(n => `<div class="trBagRow${left(n) > 0 ? "" : " out"}"><button onclick="tradeAdd('${n.replace(/'/g, "\\'")}')" ${left(n) > 0 ? "" : "disabled"}>${ico(n)}${idEsc(n)} <small>${left(n)}</small></button><button class="trAll" onclick="tradeAddAll('${n.replace(/'/g, "\\'")}')" ${left(n) > 0 ? "" : "disabled"} title="전부 올림">전부</button></div>`).join("") : `<p class="empty">가방이 비었다.</p>`}</div></div>
     <p class="trNote k">물건을 올리거나 내리면 둘 다 확인이 풀려. 둘 다 확인하면 바로 거래돼.</p>`}
-    <div class="trBtns"><button class="trGo${M.ok ? " on" : ""}" onclick="tradeOk()" ${pay ? "disabled" : ""}>${M.ok ? "확인 풀기" : "확인"}</button><button onclick="tradeCancel()" ${pay ? "disabled" : ""}>거래 취소</button></div></div>`;
+    ${tradeMsg ? `<p class="trNote danger">${tradeMsg}</p>` : ""}<div class="trBtns"><button class="trGo${M.ok ? " on" : ""}" onclick="tradeOk()" ${pay ? "disabled" : ""}>${M.ok ? "확인 풀기" : "확인"}</button><button onclick="tradeCancel()" ${pay ? "disabled" : ""}>거래 취소</button></div></div>`;
 }
 async function friendSync(force) {   // 친구 목록·받은 명함을 서버 내용으로 (1분에 한 번쯤. 인연 탭 열 때·시작할 때)
   if (!cloudOn() || friendBusy || (!force && Date.now() - friendSyncAt < 60000)) return; friendBusy = true; friendSyncAt = Date.now();
@@ -11539,8 +11541,8 @@ function renderAcctPop() {
   if (keep) { const e2 = [...el.querySelectorAll("input")].find(i => i.placeholder === keep.ph); if (e2) { e2.focus(); try { e2.setSelectionRange(keep.s, keep.s); } catch (e) {} } }
 }
 // 버전: 바뀌면 처음 열 때 업데이트 내용 창. 웹에 올린 판이면 version.json 을 10분마다 보고 새 판이 나오면 새로고침 창
-const GAME_VER = "2026.11.02-4";
-const PATCH_NOTES = ["거래: 친구 명함·월드챗 신분증·길드원에게 '거래' → 교환창에서 물건·캡을 올리고 둘 다 확인하면 교환", "고침: 유태식 씨앗·로우 설계도 선물이 친밀도가 오르내릴 때 다시 뜨던 것"];
+const GAME_VER = "2026.11.02-5";
+const PATCH_NOTES = ["고침: 동료 질문에 답하면 대답 대사만 뜨게 (친밀도·선물 글이 대사창에 또 뜨던 것)", "고침: 교환창 '확인'이 가끔 안 눌리던 것", "보온병으로 물을 뜨면 바로 깨끗한 물 3개 (요리에 바로 씀)"];
 function updSeen() {
   const was = storeGet("rpg_ver"); storeSet("rpg_ver", GAME_VER);
   if (was && was !== GAME_VER) askOpen({ title: "업데이트됐어", lines: [`<span class="k">${GAME_VER}</span>`, `<ul class="updList">${PATCH_NOTES.map(t => `<li>${t}</li>`).join("")}</ul>`], go: ["확인", null], stay: "" });
