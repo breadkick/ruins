@@ -5762,7 +5762,8 @@ function tick(n = 1) { if (monster) monster.bt = (monster.bt || 0) + 1; if (atBa
 // 실제로 시간이 흐름: 이동·잠·잠시 쉬기, 그리고 바깥에서 하는 모든 일
 function passTime(n = 1) {
   let starved = 0;   // 굶주린 채 지난 시간 (잠처럼 여러 턴이 한꺼번에 지나면 끝에 한 줄로)
-  for (let i = 0; i < n; i++) {
+  let i = 0;
+  for (; i < n; i++) {
     turn++;
     const h0 = player.hunger, hr = turn % HR === 0;   // hr: 1시간이 찼다 (배고픔·굶주림·작물·랜턴·정신력은 1시간마다)
     if (hr && !fillLeft()) player.hunger = Math.max(0, player.hunger - (Math.random() < st("end") * 0.03 ? 0 : 1) - (job("diver") && turn % (4 * HR) === 0 ? 1 : 0));   // 어부는 배가 빨리 고픔
@@ -5777,12 +5778,16 @@ function passTime(n = 1) {
     if (hr) world.base.farm.forEach(plot => { if (!plot || plot.ready) return; if (tsFarming()) plot.wetEver = true; plot.g = plotG(plot) + (isWet(plot) ? 2 : 1) + (job("farmer") && turn % (4 * HR) === 0 ? 1 : 0) + (tsFarming() && turn % (2 * HR) === 0 ? 1 : 0); if (plot.g >= crops[plot.seed].turns) { plot.ready = true; log(`<span class="buff">텃밭의 ${plantOf(plot.seed)}${jo(plantOf(plot.seed), "이", "가")} 다 자랐다.</span>`); noteFarm(); } });
     burnFuel(); if (hr) burnLantern(); sanTick(); mateTick(); noteTick(ph);
     if (ph === NIGHT_START && powered()) log(`<span class="warn">발전기 소리가 밤공기를 탄다. 쉘터 근처가 시끄러워질 거다.</span>`);
+    if (ph >= NIGHT_START && (ph - NIGHT_START) % RAID_EVERY === 0 && powered() && !raidPending) raidRoll();
+    if (raidPending && raidStop) { i++; break; }
     if (player.buff) { player.buff.turns--; if (player.buff.turns <= 0) { log("버프가 끝났다."); player.buff = null; } }
     if (player.regen) { player.hp = Math.min(player.maxHp, player.hp + player.regen.hp); if (--player.regen.n <= 0) player.regen = null; }
     if (player.calm && turn === player.calm) log("평온이 끝났다.");
   }
   if (!placeOpen(world.current)) nightClose();
   if (n > 1 && starved > 1) log(`<span class="danger">굶주린 채 ${starved}시간이 지났다.</span>`);
+  if (raidPending && !raidStop && !monster) { raidPending = false; if (atBase()) { log(`<span class="danger">쾅쾅. 쉘터 문을 두드리는 소리.</span>`); nightRaid(); } }
+  return i;
 }
 function calmLeft() { return Math.max(0, (player.calm || 0) - turn); }
 // =============== 기력 ===============
@@ -6072,11 +6077,10 @@ function restNote() { return `HP ${Math.round((0.3 + (atBase() ? roomSet("living
 function rest()   { if (monster) return; passTime(3); staAdd(atBase() ? 10 : 5); const lv = atBase() ? roomSet("living") : 0; sanAdd(atBase() ? 8 + Math.round(lv * 20) : 3); player.hp = Math.min(player.maxHp, player.hp + Math.floor(player.maxHp * (0.3 + lv))); log(`잠시 쉬었다. HP 회복 · 기력 +${atBase() ? 10 : 5}${lv ? " (거실 덕분에 더)" : ""} (${dur(3)})`); if (Math.random() < places[world.current].danger * 0.08) startBattle(world.current); render(); }
 function sleepTurns() { return Math.max(2, 8 - [0, 2, 3, 4][facLv("barricade")] - (facLv("bed") >= 2 ? 2 : 0) - (powered() ? 1 : 0)) * HR; }
 function sleep()  { if (monster) return; const t = sleepTurns(); sfx("sleep");
-  const raid = powered() && (isNight() || turn % DAY_LEN + t >= NIGHT_START) && Math.random() < nightRaidChance(), guard = raid && jhHome() && Math.random() < 0.5;
-  if (guard) log(`<span class="buff">한밤중 문밖이 소란했지만, ${jhHome().name}${jo(jhHome().name, "이", "가")} 먼저 나가 쫓아 보냈다.</span>`);
-  else if (raid) {   // 자다가 깸: 반만 자고 반만 회복
-    passTime(Math.ceil(t / 2)); player.hp += Math.floor((player.maxHp - player.hp) / 2); sanAdd(8); player.sta = sta() + Math.floor((staMax() - sta()) / 2); log(`<span class="danger">쾅쾅. 잠결에 문 두드리는 소리.</span>`); nightRaid(); render(); return; }
-  passTime(t);
+  raidStop = true; let slept; try { slept = passTime(t); } finally { raidStop = false; }
+  if (raidPending) {   // 자다가 깸: 잔 만큼만 회복
+    raidPending = false; const f = slept / t; player.hp += Math.floor((player.maxHp - player.hp) * f); sanAdd(Math.round(8 * f) + 2); player.sta = sta() + Math.floor((staMax() - sta()) * f);
+    log(`<span class="danger">쾅쾅. 잠결에 문 두드리는 소리. (${dur(slept)} 자고 깸)</span>`); nightRaid(); render(); return; }
   if (player.hunger <= 0) { player.hp += Math.floor((player.maxHp - player.hp) / 2); player.sta = sta() + Math.floor((staMax() - sta()) / 2); log(`<span class="danger">배가 고파 잠을 설쳤다.</span> HP·기력 절반만 회복 (${dur(t)})`); }   // 굶주리면 반만
   else { player.hp = player.maxHp; player.sta = staMax(); log(`${facName("bed")}에서 잤다. HP·기력 완전 회복 (${dur(t)})`); }
   sanAdd(25 + facLv("bed") * 5 + (powered() ? 10 : 0)); const bl = facLv("bed"); if (bl >= 2) player.buff = bl >= 3 ? { atk: 3, turns: 15 } : { atk: 2, turns: 10 }; knockGift(); render(); }
@@ -7294,7 +7298,23 @@ function tvOn() {
   say([[{ name: `텔레비전 · ${t}`, face: { furn: "tv_c" } }, line]]); log(`텔레비전에서 ${t}${jo(t, "이", "가")} 나왔다.${r ? ` <span class="buff">${r}</span>` : ""}`); render();
 }
 // 밤에 발전기 소리를 듣고 놈들이 쉘터 문 앞까지 옴 (바리케이드가 높을수록 덜 옴)
-function nightRaidChance() { return Math.max(0.03, (0.4 - facLv("barricade") * 0.1) * petRaidMul() * (jhHome() ? 0.5 : 1)); }   // 진혁이 쉘터에 있으면 절반
+// 밤 습격: 발전기가 돌면 밤 10시부터 3시간마다(10시·1시·4시) 10%. 바리케이드 단계마다 -25% · 펫 · 진혁(절반, 와도 절반은 막음)
+const RAID_EVERY = 3 * HR; let raidPending = false, raidStop = false;
+function nightRaidChance() { return Math.max(0.02, 0.10 * Math.max(0.25, 1 - facLv("barricade") * 0.25) * petRaidMul() * (jhHome() ? 0.5 : 1)); }
+function raidRoll() {
+  if (Math.random() >= nightRaidChance()) return;
+  const j = jhHome(); if (j && Math.random() < 0.5) { log(`<span class="buff">한밤중 쉘터 문밖이 소란했지만, ${j.name}${jo(j.name, "이", "가")} 먼저 나가 쫓아 보냈다.</span>`); return; }
+  if (atBase()) { raidPending = true; return; }
+  raidAway();
+}
+function raidAway() {   // 밖에 있을 때: 쉘터에 놈들이 다녀감 → 수납 상자에서 몇 개 · 없으면 기름 한 통
+  const L = []; for (const c of stashList()) for (const n in c.d.box || {}) if (c.d.box[n] > 0) L.push([c, n]);
+  const lost = [];
+  for (let k = 0; k < 2 && L.length; k++) { const j = Math.floor(Math.random() * L.length), [c, n] = L[j]; c.d.box[n]--; if (c.d.box[n] <= 0) { delete c.d.box[n]; L.splice(j, 1); } lost.push(n); }
+  if (!lost.length && PW().fuel > 0) { PW().fuel--; lost.push("기름통"); }
+  const t = lost.length ? `발전기 소리를 듣고 놈들이 쉘터를 뒤지고 갔다. 잃은 것: ${lost.join(", ")}` : "발전기 소리를 듣고 놈들이 쉘터 문 앞을 어슬렁거리다 갔다.";
+  log(`<span class="danger">${t}</span>`); note("raid", t);
+}
 function nightRaid() {
   const nm = pick(dangerMonsters[2]); monster = makeMonster(nm, "shelter"); sanAdd(-MON_FEAR[monTier()] - 3);
   log(`<span class="danger">발전기 소리를 듣고 ${monster.name}${jo(monster.name, "이", "가")} 쉘터 문 앞까지 왔다.</span>`); bOpen();
@@ -9267,7 +9287,7 @@ function manualSections() {
       { t: "수납", body: () => mwT(["가구", "칸", "넣을 수 있는 것"], stashRows) + mwL(["낡은 가구는 칸이 절반. 꾸미기에서 고치면(" + mwCost(FIX_COST) + ") 깨끗한 것이 된다.", "수납 창 맨 위에서 <b>캡</b>을 맡길 수 있다. 맡긴 캡은 쓰러져도 안 잃는다.",
         "수납 창에서 가구마다 <b>이름</b>과 <b>담는 것</b>(요리·식재료·재료 …)을 정할 수 있다. 가방이 넘칠 때, 동료가 넣을 때, '수납 가구에 넣기'를 누를 때는 담는 것이 맞는 가구에 먼저 넣고, 그다음 '아무거나' 가구에 넣는다.",
         "<b>분류대로 정리</b>: 모든 수납 가구와 바닥의 물건을 담는 것에 맞게 다시 나눠 넣는다.", "가방과 수납 창 위의 칩으로 분류별로 걸러 볼 수 있다. 펼쳐서 ★ 중요 표시를 하면 '중요' 칩에 모인다 (녹슨 열쇠·지도 조각·숨은 물건은 처음부터 중요)."]) },
-      { t: "발전기와 전기", body: () => mwL(["발전기를 쉘터에 놓고 기름통을 부어 돌린다. 하루에 한 통을 쓴다.", "기름은 발전기 탱크 2 + 기름 드럼통마다 5 (녹슨 것은 2)까지 부어 둘 수 있다.", `밤에 발전기를 돌리면 소리가 나서 쉘터 근처에서 마주칠 확률이 1.5배, 자다가 놈이 문 앞까지 올 확률 ${pct(nightRaidChance())} (바리케이드 단계마다 -10%, 최소 5%).`]) +
+      { t: "발전기와 전기", body: () => mwL(["발전기를 쉘터에 놓고 기름통을 부어 돌린다. 하루에 한 통을 쓴다. 켜 두면 밤에 쉘터 방마다 불이 들어온다.", "기름은 발전기 탱크 2 + 기름 드럼통마다 5 (녹슨 것은 2)까지 부어 둘 수 있다.", `밤에 발전기를 돌리면 소리가 나서 쉘터 근처에서 마주칠 확률이 1.5배. 밤 10시·1시·4시마다 놈들이 쉘터로 올 확률 ${pct(nightRaidChance())} (바리케이드 단계마다 -25% · 진혁이 있으면 절반). 쉘터에 있으면 문 앞 교전(자다가 깸), 밖에 있으면 수납 상자에서 2개쯤 털림.`, "N12가 쉘터에 있으면 기름 한 통이 이틀 간다."]) +
         mwT(["전기 가구", "효과"], Object.entries(ELEC).map(([n, f]) => [n, f])) },
       { t: "작업대", body: () => mwL(["<b>무기 강화</b>: → 교전 > 강화", "<b>분해</b>: 가방의 가구를 뜯어 재료로.", "<b>만들기</b>: 무기·가구·부엌 가구·도구. 재료가 다 있으면 줄이 초록색, 모자라면 아이콘이 흑백, 잠긴 건 흐릿하게."]) },
     ] },
@@ -11568,8 +11588,8 @@ function renderAcctPop() {
   if (keep) { const e2 = [...el.querySelectorAll("input")].find(i => i.placeholder === keep.ph); if (e2) { e2.focus(); try { e2.setSelectionRange(keep.s, keep.s); } catch (e) {} } }
 }
 // 버전: 바뀌면 처음 열 때 업데이트 내용 창. 웹에 올린 판이면 version.json 을 10분마다 보고 새 판이 나오면 새로고침 창
-const GAME_VER = "2026.11.02-7";
-const PATCH_NOTES = ["N12 전용 특기 '전기공': 쉘터에 있으면 발전기 기름 이틀에 한 통 · 전기 가구 수리 재료 절반 · 친해지면 아침마다 배터리 · 단짝이면 공구대 +20%", "이진혁 전용 특기 '경계병': 쉘터에 있으면 밤 습격 절반 · 절반은 먼저 막아 줌 · 데리고 나가면 기습 -40% · 도주 +20% · 친해지면 사흘마다 탄약 3발"];
+const GAME_VER = "2026.11.02-8";
+const PATCH_NOTES = ["밤 습격: 발전기가 돌면 밤 10시·1시·4시마다 10% (바리케이드·펫·진혁으로 줄어듦)", "쉘터에 있으면 문 앞 교전(자다가 깨면 잔 만큼만 회복) · 밖에 있으면 수납 상자에서 2개쯤 털림", "N12 전기공 · 진혁 경계병 전용 특기"];
 function updSeen() {
   const was = storeGet("rpg_ver"); storeSet("rpg_ver", GAME_VER);
   if (was && was !== GAME_VER) askOpen({ title: "업데이트됐어", lines: [`<span class="k">${GAME_VER}</span>`, `<ul class="updList">${PATCH_NOTES.map(t => `<li>${t}</li>`).join("")}</ul>`], go: ["확인", null], stay: "" });
