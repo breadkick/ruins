@@ -1173,8 +1173,8 @@ const places = {
               desc: "녹슨 차들이 줄지어 있다. 트렁크마다 뭔가 남아 있을지도.", items: ["천 조각", "고철", "통조림", "토마토 씨앗", "타이어 더미", "녹슨 표지판"] },
   canal:    { name: "수로 입구",     region: "shelter", type: "water", x: 140, y: 270, danger: 1,
               desc: "검은 물이 느리게 흐른다. 가끔 상류에서 물건이 떠내려온다.", items: ["통조림", "군용 식량", "비상 식량"] },
-  scrap:    { name: "폐자재 야적장", region: "shelter", type: "rubble", label: "야적장", x: 240, y: 62, danger: 1, pool: 6, bulk: 1,   // 나무 판자·고철만. 많이 나오고 금방 안 마름
-              desc: "무너진 공사장 옆 공터. 각목이랑 녹슨 철근이 산처럼 쌓여 있다.", items: ["나무 판자", "고철"] },
+  scrap:    { name: "폐자재 야적장", region: "shelter", type: "rubble", label: "야적장", x: 240, y: 62, danger: 1, pool: 6, bulk: 1,   // 초반 재료: 나무 판자·고철·천 조각만. 많이 나오고 금방 안 마름
+              desc: "무너진 공사장 옆 공터. 각목이랑 녹슨 철근, 찢어진 방수포가 산처럼 쌓여 있다.", items: ["나무 판자", "고철", "천 조각"] },
   pass:     { name: "동쪽 통로",     region: "shelter", type: "gate", x: 400, y: 230, danger: 2,
               desc: "철조망 사이로 난 좁은 길. 너머에 시가지가 보인다.", items: ["고철"] },
   overpass: { name: "무너진 고가도로", region: "city", type: "road", x: 80, y: 170, danger: 2,
@@ -11318,8 +11318,8 @@ function renderAcctPop() {
   if (keep) { const e2 = [...el.querySelectorAll("input")].find(i => i.placeholder === keep.ph); if (e2) { e2.focus(); try { e2.setSelectionRange(keep.s, keep.s); } catch (e) {} } }
 }
 // 버전: 바뀌면 처음 열 때 업데이트 내용 창. 웹에 올린 판이면 version.json 을 10분마다 보고 새 판이 나오면 새로고침 창
-const GAME_VER = "2026.11.01-9";
-const PATCH_NOTES = ["고침: 교전이 시작될 때 전투 화면·버튼이 가려지거나 안 뜨던 것 (안 뜨면 2초 안에 다시 그림)", "보급 꾸러미: 모두에게 한 번 들개 고기 2 · 나무 판자 2", "수색에서 먹을 것이 더 잘 나옴"];
+const GAME_VER = "2026.11.01-10";
+const PATCH_NOTES = ["폐자재 야적장에서 천 조각도 나옴 (나무 판자·고철·천 조각)", "고침: 교전 화면이 안 뜨거나 가려지던 것", "보급 꾸러미 · 수색 음식 1.6배"];
 function updSeen() {
   const was = storeGet("rpg_ver"); storeSet("rpg_ver", GAME_VER);
   if (was && was !== GAME_VER) askOpen({ title: "업데이트됐어", lines: [`<span class="k">${GAME_VER}</span>`, `<ul class="updList">${PATCH_NOTES.map(t => `<li>${t}</li>`).join("")}</ul>`], go: ["확인", null], stay: "" });
