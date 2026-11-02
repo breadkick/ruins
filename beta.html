@@ -2838,6 +2838,8 @@ let deco = { on: false, tool: "move", sel: null, place: null, floor: 1, paper: 1
 function basePos(k) { return (world.base.pos && world.base.pos[k]) || BASE_POS[k]; }
 function furnTiles(d) { return longTiles(d.x, d.y, FURNITURE[d.n].long, d.f); }
 function facPlaced(k) { return k === "workbench" || k === "bed" || hasFacility(k); }
+// 시설(작업대·잠자리·화로·선반)이 놓인 쉘터 방. 다른 방으로 옮기는 중이면 null
+function facRoom(k) { const C = world.base.carry; if (C && C.fac === k) return null; const r = world.base.froom && world.base.froom[k]; return r && r !== "main" && ROOM_SETS[r] && roomLv() >= ROOM_SETS[r].lv ? r : "main"; }
 
 // =============== 쉘터 방 (방 · 부엌 · 거실) ===============
 const ROOM_NAMES = { main: "방", kitchen: "부엌", living: "거실" };
@@ -2970,7 +2972,7 @@ function roomSet(room) {
 // 문 자리에 놓인 가구·시설은 옆으로 비킴 (예전 저장, 방이 새로 생길 때)
 function clearDoorSpots() {
   for (const room of ["main", "kitchen", "living"]) {
-    const R0 = RM(room), busy = (x, y, skip) => (R0.decor || []).some((d, i) => i !== skip && furnTiles(d).some(([a, b]) => a === x && b === y)) || isDoorSpot(x, y, room) || (room === "main" && Object.keys(BASE_POS).some(k => facPlaced(k) && facTiles(k).some(([a, b]) => a === x && b === y)));
+    const R0 = RM(room), busy = (x, y, skip) => (R0.decor || []).some((d, i) => i !== skip && furnTiles(d).some(([a, b]) => a === x && b === y)) || isDoorSpot(x, y, room) || (Object.keys(BASE_POS).some(k => facPlaced(k) && facRoom(k) === room && facTiles(k).some(([a, b]) => a === x && b === y)));
     (R0.decor || []).forEach((d, i) => {
       if (!furnTiles(d).some(([a, b]) => isDoorSpot(a, b, room))) return;
       for (let r = 1; r < SCENE * 2; r++) for (let y = 0; y < SCENE; y++) for (let x = 0; x < SCENE; x++) {
@@ -2979,7 +2981,7 @@ function clearDoorSpots() {
       }
     });
   }
-  for (const k in BASE_POS) if (facPlaced(k) && facTiles(k).some(([a, b]) => isDoorSpot(a, b, "main"))) { const h = heroPos; heroPos = { x: -9, y: -9 }; fitFacility(k); heroPos = h; }
+  for (const k in BASE_POS) if (facPlaced(k) && facRoom(k) && facTiles(k).some(([a, b]) => isDoorSpot(a, b, facRoom(k)))) { const h = heroPos; heroPos = { x: -9, y: -9 }; fitFacility(k); heroPos = h; }
 }
 function renderRooms() {
   if (roomLv() < 2) return "";
@@ -2998,18 +3000,18 @@ function renderRooms() {
 function furnName(key) { return key[0] === "d" ? RM().decor[+key.slice(1)].n : facName(key); }
 function roomFloorAt(x, y) { const R0 = RM(), t = R0.tiles, v = t && t[y * SCENE + x]; return v != null ? v : R0.floor || 0; }
 // 방 안 (x, y)에 뭔가 있는지. ignore = 지금 옮기는 가구 (자기 자리는 빈 칸으로 침)
-function roomBusy(x, y, ignore) {
+function roomBusy(x, y, ignore, room = curRoom() || "main") {
   if (x < 0 || y < 0 || x >= SCENE || y >= SCENE) return true;
-  const room = curRoom() || "main", main = room === "main";
+  const main = room === "main";
   if (isDoorSpot(x, y, room)) return true;                            // 문 앞은 비워 둠 (아직 안 생긴 문도)
-  if (heroPos.x === x && heroPos.y === y) return true;
+  if (room === (curRoom() || "main") && heroPos.x === x && heroPos.y === y) return true;
   if (main && !player.lantern && x === 5 && y === 1) return true;    // 아직 안 챙긴 랜턴
-  if (main) for (const k in BASE_POS) if (k !== ignore && facPlaced(k) && facTiles(k).some(([a, b]) => a === x && b === y)) return true;
-  return (RM().decor || []).some((d, i) => "d" + i !== ignore && !FURNITURE[d.n].flat && !onSurface(d) && furnTiles(d).some(([a, b]) => a === x && b === y));
+  for (const k in BASE_POS) if (k !== ignore && facPlaced(k) && facRoom(k) === room && facTiles(k).some(([a, b]) => a === x && b === y)) return true;
+  return (RM(room).decor || []).some((d, i) => "d" + i !== ignore && !FURNITURE[d.n].flat && !onSurface(d) && furnTiles(d).some(([a, b]) => a === x && b === y));
 }
 // 시설을 새로 놓거나 커져서(침낭 → 침대) 자리가 겹치면: 돌려 보고, 안 되면 가까운 빈자리로 옮김
 function fitFacility(k) {
-  const fits = (x, y, f) => longTiles(x, y, facLong(k), f).every(([a, b]) => !roomBusy(a, b, k));
+  const rm = facRoom(k) || "main", fits = (x, y, f) => longTiles(x, y, facLong(k), f).every(([a, b]) => !roomBusy(a, b, k, rm));
   const [x0, y0] = basePos(k), f0 = facFlip(k);
   if (fits(x0, y0, f0)) return;
   const setAt = (x, y, f) => { world.base.pos = { ...(world.base.pos || {}), [k]: [x, y] }; world.base.flip = { ...(world.base.flip || {}), [k]: f }; };
@@ -3050,6 +3052,8 @@ function decoConfirm() { const q = deco.prev; if (!q || !decoActive() || deco.to
   if (deco.place) placeFurn(q.x, q.y); else if (deco.sel) moveFurn(q.x, q.y); else return false; return true; }
 function decoGhost() {   // 미리보기: [그림 이름, 칸들, 놓을 수 있나, 가구 그림인가, 뒤집힘]
   const q = deco.prev; if (!q || deco.tool !== "move") return null;
+  const CF = world.base.carry && world.base.carry.fac;
+  if (CF) { const tl = longTiles(q.x, q.y, facLong(CF), false); return [facArt(CF), tl, !tl.some(([a, b]) => roomBusy(a, b, CF)), true, false]; }
   if (deco.place) { const nd = { n: deco.place, x: q.x, y: q.y, f: false }, F = FURNITURE[deco.place]; return F && [F.art || F.prop, furnTiles(nd), canSit(nd), !!F.art, false]; }
   const key = deco.sel; if (!key) return null;
   if (key[0] === "d") { const od = RM().decor[+key.slice(1)]; if (!od) return null; const nd = { ...od, x: q.x, y: q.y }, F = FURNITURE[od.n]; return [F.art || F.prop, furnTiles(nd), canSit(nd, key), !!F.art, !!od.f]; }
@@ -3087,8 +3091,13 @@ function repairFurn() {
 // 다른 방으로 옮기기: 고른 가구를 들고 그 방으로 가서 놓음 (수납 가구 안의 물건도 그대로). 놓을 칸을 안 고르고 그만두면 그 방 빈 자리에, 자리가 없으면 원래 방에
 function furnRooms() { return ["main", ...(ROOM_DOORS.main || []).filter(d => ROOM_NAMES[d.to] && (!d.need || roomLv() >= d.need)).map(d => d.to)].filter(r => r !== (curRoom() || "main")); }
 function sendFurn(to) {
-  const key = deco.sel; if (!key || key[0] !== "d" || !furnRooms().includes(to) || monster) return;
-  const from = curRoom() || "main", i = +key.slice(1), d = RM().decor[i]; if (!d) return;
+  const key = deco.sel; if (!key || !furnRooms().includes(to) || monster) return;
+  const from = curRoom() || "main";
+  if (key[0] !== "d") {   // 시설: 자리(pos)는 놓을 때 바꿈
+    if (!BASE_POS[key]) return; const nm = facName(key);
+    enterRoom(to); deco.on = true; deco.tool = "move"; world.base.carry = { fac: key, from }; deco.place = nm; deco.prev = null;
+    log(`${nm}${jo(nm, "을", "를")} 옮겨 ${ROOM_NAMES[to]}${jo(ROOM_NAMES[to], "으로", "로")} 왔다. 놓을 칸을 누르자.`); render(); return; }
+  const i = +key.slice(1), d = RM().decor[i]; if (!d) return;
   RM().decor.splice(i, 1); settleToppers();
   enterRoom(to); deco.on = true; deco.tool = "move"; world.base.carry = { d, from }; deco.place = d.n; deco.prev = null;
   log(`${d.n}${jo(d.n, "을", "를")} 들고 ${ROOM_NAMES[to]}${jo(ROOM_NAMES[to], "으로", "로")} 왔다. 놓을 칸을 누르자.`); render();
@@ -3100,6 +3109,12 @@ function sendFurnMenu() {
 }
 function carryDrop() {
   const C = world.base.carry; if (!C) return; world.base.carry = null; deco.place = deco.prev = null; const d = C.d, here = curRoom() || "main";
+  if (C.fac) {   // 시설: 이 방 빈 자리에 (없으면 원래 방 그대로)
+    const k = C.fac, nm = facName(k);
+    if (world.current === "shelter") for (let y = 0; y < SCENE; y++) for (let x = 0; x < SCENE; x++) for (const f of [false, true]) if (!longTiles(x, y, facLong(k), f).some(([a, b]) => roomBusy(a, b, k))) {
+      world.base.froom = { ...(world.base.froom || {}), [k]: here }; world.base.pos = { ...(world.base.pos || {}), [k]: [x, y] }; world.base.flip = { ...(world.base.flip || {}), [k]: f };
+      log(`${nm}${jo(nm, "을", "를")} ${ROOM_NAMES[here]} 빈 자리에 놓았다. 꾸미기에서 옮길 수 있다.`); return; }
+    log(`놓을 자리가 없어 ${nm}${jo(nm, "은", "는")} ${ROOM_NAMES[C.from]}에 그대로 두었다.`); return; }
   if (world.current === "shelter") for (let y = 0; y < SCENE; y++) for (let x = 0; x < SCENE; x++) { const nd = { ...d, x, y, f: false }; if (canSit(nd)) { RM().decor.push(nd); log(`${d.n}${jo(d.n, "을", "를")} ${ROOM_NAMES[here]} 빈 자리에 놓았다. 꾸미기에서 옮길 수 있다.`); return; } }
   RM(C.from).decor.push(d); log(`놓을 자리가 없어 ${d.n}${jo(d.n, "을", "를")} ${ROOM_NAMES[C.from]} 원래 자리에 다시 두었다.`);
 }
@@ -3121,6 +3136,10 @@ function canSit(nd, ignore) {
   return !t.some(([a, b]) => roomBusy(a, b, ignore));
 }
 function placeFurn(x, y) {
+  if (world.base.carry && world.base.carry.fac) { const k = world.base.carry.fac, nm = facName(k);
+    if (longTiles(x, y, facLong(k), false).some(([a, b]) => roomBusy(a, b, k))) { log("거기엔 놓을 수 없다."); render(); return; }
+    world.base.carry = null; world.base.froom = { ...(world.base.froom || {}), [k]: curRoom() || "main" }; world.base.pos = { ...(world.base.pos || {}), [k]: [x, y] }; world.base.flip = { ...(world.base.flip || {}), [k]: false };
+    deco.place = deco.prev = null; deco.sel = k; log(`${nm}${jo(nm, "을", "를")} ${ROOM_NAMES[curRoom() || "main"]}에 옮겨 놓았다.`); render(); return; }
   if (world.base.carry) { const C = world.base.carry, nd = { ...C.d, x, y, f: false }; if (!canSit(nd)) { log("거기엔 놓을 수 없다."); render(); return; }
     RM().decor.push(nd); world.base.carry = null; deco.place = deco.prev = null; deco.sel = "d" + (RM().decor.length - 1); log(`${nd.n}${jo(nd.n, "을", "를")} ${ROOM_NAMES[curRoom() || "main"]}에 옮겨 놓았다.`); render(); return; }
   const name = deco.place; if (!name || itemCount(name) < 1) { deco.place = null; render(); return; }
@@ -3142,7 +3161,7 @@ function renderDeco() {
   h += `<div class="tools">${tb("move", "가구")}${tb("floor", "바닥")}${tb("paper", "벽지")}<button class="tool end" onclick="endDeco()">끝내기</button></div>`;
   if (deco.tool === "move") {
     if (deco.place) h += `<p class="k">${ico(deco.place)}${deco.place} · ${deco.prev ? `미리보기 중. 맞으면 ${DECO_OK_TXT()}, 아니면 다른 칸을 누르세요.` : "놓을 칸을 장면에서 누르면 미리 보여요."}</p><p>${deco.prev ? `<button onclick="decoConfirm()" ${decoGhost() && decoGhost()[2] ? "" : "disabled"}>여기에 놓기</button> ` : ""}<button onclick="${world.base.carry ? "carryDrop(); render()" : "deco.place=null; deco.prev=null; render()"}">${world.base.carry ? "아무 데나 두기" : "취소"}</button></p>`;
-    else if (deco.sel) h += `<p class="k">${furnName(deco.sel)} 고름 · ${deco.prev ? `미리보기 중. 맞으면 ${DECO_OK_TXT()}, 아니면 다른 칸을 누르세요.` : "옮길 칸을 장면에서 누르면 미리 보여요."}</p><p>${deco.prev ? `<button onclick="decoConfirm()" ${decoGhost() && decoGhost()[2] ? "" : "disabled"}>여기로 옮기기</button> ` : ""}<button onclick="flipFurn()">돌리기</button> ${deco.sel[0] === "d" ? `<button onclick="pickUpFurn()">가방에 넣기</button> ` : ""}${deco.sel[0] === "d" && furnRooms().length ? `<button onclick="sendFurnMenu()">${furnRooms().length === 1 ? `${ROOM_NAMES[furnRooms()[0]]}${jo(ROOM_NAMES[furnRooms()[0]], "으로", "로")} 옮기기` : "다른 방으로 옮기기"}</button> ` : ""}${deco.sel[0] === "d" && FURNITURE[furnName(deco.sel)].fix ? `<button onclick="repairFurn()" ${canAfford(fixCost(furnName(deco.sel))) ? "" : "disabled"}>고치기 · ${costText(fixCost(furnName(deco.sel)))}</button> ` : ""}<button onclick="deco.sel=null; deco.prev=null; render()">고르기 취소</button></p>`;
+    else if (deco.sel) h += `<p class="k">${furnName(deco.sel)} 고름 · ${deco.prev ? `미리보기 중. 맞으면 ${DECO_OK_TXT()}, 아니면 다른 칸을 누르세요.` : "옮길 칸을 장면에서 누르면 미리 보여요."}</p><p>${deco.prev ? `<button onclick="decoConfirm()" ${decoGhost() && decoGhost()[2] ? "" : "disabled"}>여기로 옮기기</button> ` : ""}<button onclick="flipFurn()">돌리기</button> ${deco.sel[0] === "d" ? `<button onclick="pickUpFurn()">가방에 넣기</button> ` : ""}${(deco.sel[0] === "d" || BASE_POS[deco.sel]) && furnRooms().length ? `<button onclick="sendFurnMenu()">${furnRooms().length === 1 ? `${ROOM_NAMES[furnRooms()[0]]}${jo(ROOM_NAMES[furnRooms()[0]], "으로", "로")} 옮기기` : "다른 방으로 옮기기"}</button> ` : ""}${deco.sel[0] === "d" && FURNITURE[furnName(deco.sel)].fix ? `<button onclick="repairFurn()" ${canAfford(fixCost(furnName(deco.sel))) ? "" : "disabled"}>고치기 · ${costText(fixCost(furnName(deco.sel)))}</button> ` : ""}<button onclick="deco.sel=null; deco.prev=null; render()">고르기 취소</button></p>`;
     else h += `<p class="k">장면에서 가구를 누르면 고르고, 빈 칸을 누르면 그리로 옮겨요.</p>`;
     const bag = Object.keys(FURNITURE).filter(n => itemCount(n) > 0);
     h += `<div class="sub">가진 가구</div>` + (bag.length ? bag.map(n => `<div class="item"><span>${ico(n)}${n}<small>${itemCount(n)}개</small></span><span class="btns"><button onclick="startPlace('${n}')">놓기</button></span></div>`).join("") : `<p class="empty">아직 없음. 장소를 뒤지면 가구가 나와요.</p>`);
@@ -3297,7 +3316,7 @@ function drawScene(id) {
   if (p.type === "shelter") {
     // 꾸미기 중 고른 가구는 data-sel로 빛나게
     const mk = key => ` data-furn="${key}"${deco.on && deco.sel === key ? " data-sel" : ""}`;
-    if ((curRoom() || "main") === "main") for (const k of ["workbench", "bed", "stove", "shelf"]) if (facPlaced(k)) putProp(facArt(k), facTiles(k), { furn: true, kind: k, attr: mk(k), flip: facFlip(k) });   // 시설 가구 (단계마다 그림)
+    for (const k of ["workbench", "bed", "stove", "shelf"]) if (facPlaced(k) && facRoom(k) === (curRoom() || "main")) putProp(facArt(k), facTiles(k), { furn: true, kind: k, attr: mk(k), flip: facFlip(k) });   // 시설 가구 (단계마다 그림)
     (RM().decor || []).forEach((d, i) => { const tl = furnTiles(d), F = FURNITURE[d.n], si = F.top ? surfaceAt(d.x, d.y) : -1, sd = si >= 0 ? RM().decor[si] : null;
       const up = sd ? { dy: -surfElev(sd), z: Math.max(...furnTiles(sd).map(([a, b]) => a + b)) * 2 + 2 } : {};
       putProp(F.art || F.prop, tl, { furn: !!F.art, kind: "furn", flip: d.f, walk: !!F.flat, z: F.flat ? 1 : undefined, ...up, each: tl.map(() => ({ di: i, flat: !!F.flat })), attr: mk("d" + i) + (d.n === "발전기" && powered() ? " data-run" : "") }); });
@@ -12069,9 +12088,9 @@ function renderAcctPop() {
   if (keep) { const e2 = [...el.querySelectorAll("input")].find(i => i.placeholder === keep.ph); if (e2) { e2.focus(); try { e2.setSelectionRange(keep.s, keep.s); } catch (e) {} } }
 }
 // 버전: 바뀌면 처음 열 때 업데이트 내용 창. 웹에 올린 판이면 version.json 을 10분마다 보고 새 판이 나오면 새로고침 창
-const GAME_VER = "2026.11.02-21";
-const PATCH_NOTES = ["꾸미기에서 가구를 다른 방(방·부엌·거실)으로 바로 옮길 수 있음. 가구를 고르고 '다른 방으로 옮기기' → 그 방에서 놓을 칸을 누름. 수납 가구 안의 물건도 그대로"];
-const PATCH_LOG = [{"v": "2026.11.02-21", "notes": ["꾸미기에서 가구를 다른 방(방·부엌·거실)으로 바로 옮길 수 있음. 가구를 고르고 '다른 방으로 옮기기' → 그 방에서 놓을 칸을 누름. 수납 가구 안의 물건도 그대로"]}, {"v": "2026.11.02-20", "notes": ["펫이 지낼 방을 고를 수 있음 (방·부엌·거실 중 열린 곳). 펫에게 말 걸어 '지낼 방을 정한다' 또는 인연 탭 펫 줄에서 고름. 방석은 어느 방에 둬도 됨"]}, {"v": "2026.11.02-19", "notes": ["무기를 바꿔 들어도 강화·개조가 사라지지 않음. 가방에 넣어 두면 기억했다가 그 무기를 다시 들면 그대로 돌아옴", "배낭 고치기 화면의 '고치면 ○개' 숫자가 지구력 보너스를 빼고 적히던 문제 고침"]}, {"v": "2026.11.02-18", "notes": ["동료 수색은 이제 권장 공격력(내가 갈 만한 곳)이 돼야 물건을 주워 옴. 모자란 곳에 보내면 빈손으로 크게 다쳐서 돌아옴", "수색 지도에서 권장 공격력이 모자란 곳은 붉게 빛나고, 고를 때 권장/지금 공격력이 보임"]}, {"v": "2026.11.02-17", "notes": ["동료 수색: [수색을 다녀온다]를 누르면 지도가 열려서 갈 곳을 직접 눌러 고름. 하루 걸려 다음 날 아침에 돌아옴", "수색은 한 번만 보내거나 '매일 다녀와'로 보내기 (아침마다 같은 곳으로 다시 떠남 · 동료 칸에서 끔)", "랜턴은 이제 배터리로 충전 (배터리 1개로 가득 · 기름통은 안 씀)", "바리케이드 전기 철조망: 배터리 1개 = 밤 3번. 습격 확률 절반, 그래도 쳐들어오면 놈들이 감전돼 HP -25%", "정비사 개조 '전기 코일' (소방도끼·합금 대검·엔진 톱 같은 상위 무기만): 공격 +3 · 기절 +10% · 배터리 2개", "고침: 무한의 탑에 같이 가자고 하지 않은 동료가 따라오던 문제"]}, {"v": "2026.11.02-16", "notes": ["몬스터 레벨 맞춤 비율 조정: 레벨마다 체력 +8% · 방어 +0.24 (테스트 창 결과 반영)", "무한의 탑: 10층까지는 1~2마리로 천천히 세져서 보통 캐릭터도 깰 수 있게 · 11층부터 확 세짐 · 층 사이 회복 15% → 20%"]}, {"v": "2026.11.02-15", "notes": ["고침: 교전 화면에서 유태식·로우·N12가 몬스터 반대쪽을 보던 것", "고침: 대사창 이모티콘(하트·땀 등)이 잘려 안 보이던 것 → 대사창 안 위쪽에 뜸"]}, {"v": "2026.11.02-14", "notes": ["무한의 탑: 층 보상은 모아 뒀다가 5·10·15층… 쉬는 층에서 멈춰야 챙김 · 그 전에 쓰러지거나 내려가면 모은 보상만 잃음", "교전 중 '붕대'를 누르면 붕대·약초 붕대 등 치료 물건을 골라 쓸 수 있음 (탑에선 층마다 합쳐서 5번)", "고침: 무리 교전에서 다음 놈이 나올 때 행동 단추가 사라지던 것"]}, {"v": "2026.11.02-13", "notes": ["업데이트 알림: 패치가 여러 번 나와도 마지막 공지 하나만 뜸 · '새 버전' 창에서 본 내역은 새로고침 뒤 또 안 뜸 · 전투·대화·다른 창이 떠 있으면 끝난 뒤에 알림"]}, {"v": "2026.11.02-12", "notes": ["고침: 무한의 탑 입장 창에 태그 글자(span)가 그대로 보이던 것 · 길드 게시판·길드원 대사도 같이"]}, {"v": "2026.11.02-11", "notes": ["무한의 탑: 쉘터에서 입장 · 하루(현실 날짜) 3번 · 층마다 1~5마리 무리, 점점 엄청 세짐 · 붕대는 층마다 5번 · 쓰러져도 잃는 것 없음", "탑 보상(확률): 핏빛 결정(출혈) · 충격 코일(기절) · 날 선 파편(강타) → 무기에 박으면 그 무기 종류에 계속 남음 · 10층마다 그 층부터 다시 오를 수 있음", "몬스터 무리: 랜덤 조우·습격에서 최대 5마리가 한 놈씩 차례로 덤빔 · 습격은 내 레벨에 맞는 놈들로", "몬스터가 내 레벨에 맞춰 체력·공격·방어가 오름 (방어 = 한 방마다 그만큼 덜 들어감)", "새 능력치 '방어'(받는 피해 -2%씩)·'민첩'(피하기·도주) · 능력치 최대 20 → 50", "경험치 0.6배 · 수색에서 음식 나올 확률 줄임"]}, {"v": "2026.11.02-10", "notes": ["공지 창: 지금까지 업데이트 내역을 볼 수 있음 (PC 왼쪽 아래 '공지' · 폰은 위쪽 알림 옆 '공지')", "친밀도: 아침밥으로는 안 오름 · 이야기와 선물은 동료마다 현실 시간 30분에 한 번", "고백 알림 같은 친밀도 구간 알림은 딱 한 번만"]}, {"v": "2026.11.02-9", "notes": ["고침: 폰에서 선택지가 많으면 대사창 위가 잘리던 것 (장면 안에서 스크롤)", "고침: 이동 중 사건(떠돌이 상인 등)이 뜨면 거기서 멈춤 → 다음 곳 전투가 사건 대사창과 겹치지 않게", "N12·진혁·로우·태식은 떠나보내도 하루 뒤 처음 만난 곳에 돌아와 있음 (다시 데려오면 친밀도 -10, 기록 그대로)"]}, {"v": "2026.11.02-8", "notes": ["밤 습격: 발전기가 돌면 밤 10시·1시·4시마다 10% (바리케이드·펫·진혁으로 줄어듦)", "쉘터에 있으면 문 앞 교전(자다가 깨면 잔 만큼만 회복) · 밖에 있으면 수납 상자에서 2개쯤 털림", "N12 전기공 · 진혁 경계병 전용 특기"]}, {"v": "2026.11.02-7", "notes": ["N12 전용 특기 '전기공': 쉘터에 있으면 발전기 기름 이틀에 한 통 · 전기 가구 수리 재료 절반 · 친해지면 아침마다 배터리 · 단짝이면 공구대 +20%", "이진혁 전용 특기 '경계병': 쉘터에 있으면 밤 습격 절반 · 절반은 먼저 막아 줌 · 데리고 나가면 기습 -40% · 도주 +20% · 친해지면 사흘마다 탄약 3발"]}, {"v": "2026.11.02-6", "notes": ["거래 고침: 주고받는 도중 한쪽이 모자라서 취소돼도 물건이 사라지지 않게 (둘 다 준비된 뒤 한 번에 바꿈)", "거래 고침: 끝나지 않은 거래를 새 거래가 덮어쓰지 않게 · 새로고침해도 이어서 끝남", "거래 기록에 준 것·받은 것이 같이 남음"]}, {"v": "2026.11.02-5", "notes": ["고침: 동료 질문에 답하면 대답 대사만 뜨게 (친밀도·선물 글이 대사창에 또 뜨던 것)", "고침: 교환창 '확인'이 가끔 안 눌리던 것", "보온병으로 물을 뜨면 바로 깨끗한 물 3개 (요리에 바로 씀)"]}, {"v": "2026.11.02-4", "notes": ["거래: 친구 명함·월드챗 신분증·길드원에게 '거래' → 교환창에서 물건·캡을 올리고 둘 다 확인하면 교환", "고침: 유태식 씨앗·로우 설계도 선물이 친밀도가 오르내릴 때 다시 뜨던 것"]}, {"v": "2026.11.02-3", "notes": ["거래: 친구 명함·월드챗 신분증·길드원에게 '거래' → 교환창에서 물건·캡을 올리고 둘 다 확인하면 교환", "교환창: 올린 칸 누르면 1개 내림 · 바꾸면 둘 다 확인 풀림"]}, {"v": "2026.11.02-2", "notes": ["야시장 상인이 밤마다 벽지 1 · 바닥재 1씩 팜 (한 번 사면 계속 씀)", "벽지·바닥재: 처음엔 기본 몇 개만, 이미 칠해 둔 건 그대로 가짐"]}, {"v": "2026.11.02-1", "notes": ["꾸미기: 칸을 누르면 미리보기 → PC는 더블클릭, 폰은 A 단추로 확정", "전기: 발전기를 돌리면 밤에 쉘터 방마다 불이 켜지고 정신력이 참", "전기 효과 강화: 잠 1시간 덜·정신력 +10, 단련 가끔 ×2, 요리 15% 빠름, 공구대 +15%, 냉장고 30%", "발전기에 말 걸어 기름 붓기 · 발전기 위에 남은 기름 표시"]}, {"v": "2026.11.01-11", "notes": ["친구 요청: 보내면 상대가 수락·거절 (수락하면 서로 명함 받음)", "쉘터 장소 메뉴에 '모닥불을 피운다' (나무 판자 2)", "지도: 모르는 곳도 위험도 표시 (숫자 + 글)"]}, {"v": "2026.11.01-10", "notes": ["폐자재 야적장에서 천 조각도 나옴 (나무 판자·고철·천 조각)", "고침: 교전 화면이 안 뜨거나 가려지던 것", "보급 꾸러미 · 수색 음식 1.6배"]}, {"v": "2026.11.01-9", "notes": ["고침: 교전이 시작될 때 전투 화면·버튼이 가려지거나 안 뜨던 것 (안 뜨면 2초 안에 다시 그림)", "보급 꾸러미: 모두에게 한 번 들개 고기 2 · 나무 판자 2", "수색에서 먹을 것이 더 잘 나옴"]}, {"v": "2026.11.01-8", "notes": ["보급 꾸러미: 모두에게 한 번 들개 고기 2 · 나무 판자 2", "수색에서 먹을 것이 더 잘 나옴 (1.6배)", "이동 시간·기력이 위치로 정해짐 · 장소 안에서 걷는 건 시간이 안 듦"]}, {"v": "2026.11.01-7", "notes": ["고침: 수색 중 사건(쓰러진 생존자 등)이 뜰 때 대사가 '…획득'으로 바뀌어 보이던 것", "이동 시간·기력이 위치로 정해짐: 쉘터 근처 2시간 · 시가지 3시간 · 공장 지대 4시간 · 항구 5시간", "장소 안에서 걷는 건 시간이 안 듦"]}, {"v": "2026.11.01-6", "notes": ["이동 시간이 위치로 정해짐: 쉘터 근처 2시간 · 시가지 3시간 · 공장 지대 4시간 · 항구 5시간 (같은 지역 안은 1시간)", "기력도 위치에 따라: 6 · 10 · 14 · 18", "배고픔은 흐른 시간만큼 (1시간에 1)", "장소 안에서 걷는 건 시간이 안 듦", "아침이면 모든 장소 뒤질 거리가 3번으로 다시 참"]}, {"v": "2026.11.01-5", "notes": ["모든 장소: 아침이 되면 뒤질 거리가 다시 3번으로 꽉 참", "물가·방사능 장소도 3번", "안쪽 방이 있는 장소: 방마다 하루 3번 수색"]}, {"v": "2026.11.01-4", "notes": ["안쪽 방이 있는 장소: 방마다 하루 3번 수색", "월드챗에서 이름을 누르면 신분증 · 친구 추가", "월드챗은 하루 지난 글이 사라짐", "시작할 때 계정 창 · 업데이트 알림", "지도 아이콘 두 번 누르면 바로 이동"]}];   // 지난 업데이트 내역 (최신이 앞) · 공지 창
+const GAME_VER = "2026.11.02-22";
+const PATCH_NOTES = ["작업대·침낭(침대)·화로·선반 같은 시설도 꾸미기에서 다른 방으로 옮길 수 있음 (시설을 고르고 '다른 방으로 옮기기')"];
+const PATCH_LOG = [{"v": "2026.11.02-22", "notes": ["작업대·침낭(침대)·화로·선반 같은 시설도 꾸미기에서 다른 방으로 옮길 수 있음 (시설을 고르고 '다른 방으로 옮기기')"]}, {"v": "2026.11.02-21", "notes": ["꾸미기에서 가구를 다른 방(방·부엌·거실)으로 바로 옮길 수 있음. 가구를 고르고 '다른 방으로 옮기기' → 그 방에서 놓을 칸을 누름. 수납 가구 안의 물건도 그대로"]}, {"v": "2026.11.02-20", "notes": ["펫이 지낼 방을 고를 수 있음 (방·부엌·거실 중 열린 곳). 펫에게 말 걸어 '지낼 방을 정한다' 또는 인연 탭 펫 줄에서 고름. 방석은 어느 방에 둬도 됨"]}, {"v": "2026.11.02-19", "notes": ["무기를 바꿔 들어도 강화·개조가 사라지지 않음. 가방에 넣어 두면 기억했다가 그 무기를 다시 들면 그대로 돌아옴", "배낭 고치기 화면의 '고치면 ○개' 숫자가 지구력 보너스를 빼고 적히던 문제 고침"]}, {"v": "2026.11.02-18", "notes": ["동료 수색은 이제 권장 공격력(내가 갈 만한 곳)이 돼야 물건을 주워 옴. 모자란 곳에 보내면 빈손으로 크게 다쳐서 돌아옴", "수색 지도에서 권장 공격력이 모자란 곳은 붉게 빛나고, 고를 때 권장/지금 공격력이 보임"]}, {"v": "2026.11.02-17", "notes": ["동료 수색: [수색을 다녀온다]를 누르면 지도가 열려서 갈 곳을 직접 눌러 고름. 하루 걸려 다음 날 아침에 돌아옴", "수색은 한 번만 보내거나 '매일 다녀와'로 보내기 (아침마다 같은 곳으로 다시 떠남 · 동료 칸에서 끔)", "랜턴은 이제 배터리로 충전 (배터리 1개로 가득 · 기름통은 안 씀)", "바리케이드 전기 철조망: 배터리 1개 = 밤 3번. 습격 확률 절반, 그래도 쳐들어오면 놈들이 감전돼 HP -25%", "정비사 개조 '전기 코일' (소방도끼·합금 대검·엔진 톱 같은 상위 무기만): 공격 +3 · 기절 +10% · 배터리 2개", "고침: 무한의 탑에 같이 가자고 하지 않은 동료가 따라오던 문제"]}, {"v": "2026.11.02-16", "notes": ["몬스터 레벨 맞춤 비율 조정: 레벨마다 체력 +8% · 방어 +0.24 (테스트 창 결과 반영)", "무한의 탑: 10층까지는 1~2마리로 천천히 세져서 보통 캐릭터도 깰 수 있게 · 11층부터 확 세짐 · 층 사이 회복 15% → 20%"]}, {"v": "2026.11.02-15", "notes": ["고침: 교전 화면에서 유태식·로우·N12가 몬스터 반대쪽을 보던 것", "고침: 대사창 이모티콘(하트·땀 등)이 잘려 안 보이던 것 → 대사창 안 위쪽에 뜸"]}, {"v": "2026.11.02-14", "notes": ["무한의 탑: 층 보상은 모아 뒀다가 5·10·15층… 쉬는 층에서 멈춰야 챙김 · 그 전에 쓰러지거나 내려가면 모은 보상만 잃음", "교전 중 '붕대'를 누르면 붕대·약초 붕대 등 치료 물건을 골라 쓸 수 있음 (탑에선 층마다 합쳐서 5번)", "고침: 무리 교전에서 다음 놈이 나올 때 행동 단추가 사라지던 것"]}, {"v": "2026.11.02-13", "notes": ["업데이트 알림: 패치가 여러 번 나와도 마지막 공지 하나만 뜸 · '새 버전' 창에서 본 내역은 새로고침 뒤 또 안 뜸 · 전투·대화·다른 창이 떠 있으면 끝난 뒤에 알림"]}, {"v": "2026.11.02-12", "notes": ["고침: 무한의 탑 입장 창에 태그 글자(span)가 그대로 보이던 것 · 길드 게시판·길드원 대사도 같이"]}, {"v": "2026.11.02-11", "notes": ["무한의 탑: 쉘터에서 입장 · 하루(현실 날짜) 3번 · 층마다 1~5마리 무리, 점점 엄청 세짐 · 붕대는 층마다 5번 · 쓰러져도 잃는 것 없음", "탑 보상(확률): 핏빛 결정(출혈) · 충격 코일(기절) · 날 선 파편(강타) → 무기에 박으면 그 무기 종류에 계속 남음 · 10층마다 그 층부터 다시 오를 수 있음", "몬스터 무리: 랜덤 조우·습격에서 최대 5마리가 한 놈씩 차례로 덤빔 · 습격은 내 레벨에 맞는 놈들로", "몬스터가 내 레벨에 맞춰 체력·공격·방어가 오름 (방어 = 한 방마다 그만큼 덜 들어감)", "새 능력치 '방어'(받는 피해 -2%씩)·'민첩'(피하기·도주) · 능력치 최대 20 → 50", "경험치 0.6배 · 수색에서 음식 나올 확률 줄임"]}, {"v": "2026.11.02-10", "notes": ["공지 창: 지금까지 업데이트 내역을 볼 수 있음 (PC 왼쪽 아래 '공지' · 폰은 위쪽 알림 옆 '공지')", "친밀도: 아침밥으로는 안 오름 · 이야기와 선물은 동료마다 현실 시간 30분에 한 번", "고백 알림 같은 친밀도 구간 알림은 딱 한 번만"]}, {"v": "2026.11.02-9", "notes": ["고침: 폰에서 선택지가 많으면 대사창 위가 잘리던 것 (장면 안에서 스크롤)", "고침: 이동 중 사건(떠돌이 상인 등)이 뜨면 거기서 멈춤 → 다음 곳 전투가 사건 대사창과 겹치지 않게", "N12·진혁·로우·태식은 떠나보내도 하루 뒤 처음 만난 곳에 돌아와 있음 (다시 데려오면 친밀도 -10, 기록 그대로)"]}, {"v": "2026.11.02-8", "notes": ["밤 습격: 발전기가 돌면 밤 10시·1시·4시마다 10% (바리케이드·펫·진혁으로 줄어듦)", "쉘터에 있으면 문 앞 교전(자다가 깨면 잔 만큼만 회복) · 밖에 있으면 수납 상자에서 2개쯤 털림", "N12 전기공 · 진혁 경계병 전용 특기"]}, {"v": "2026.11.02-7", "notes": ["N12 전용 특기 '전기공': 쉘터에 있으면 발전기 기름 이틀에 한 통 · 전기 가구 수리 재료 절반 · 친해지면 아침마다 배터리 · 단짝이면 공구대 +20%", "이진혁 전용 특기 '경계병': 쉘터에 있으면 밤 습격 절반 · 절반은 먼저 막아 줌 · 데리고 나가면 기습 -40% · 도주 +20% · 친해지면 사흘마다 탄약 3발"]}, {"v": "2026.11.02-6", "notes": ["거래 고침: 주고받는 도중 한쪽이 모자라서 취소돼도 물건이 사라지지 않게 (둘 다 준비된 뒤 한 번에 바꿈)", "거래 고침: 끝나지 않은 거래를 새 거래가 덮어쓰지 않게 · 새로고침해도 이어서 끝남", "거래 기록에 준 것·받은 것이 같이 남음"]}, {"v": "2026.11.02-5", "notes": ["고침: 동료 질문에 답하면 대답 대사만 뜨게 (친밀도·선물 글이 대사창에 또 뜨던 것)", "고침: 교환창 '확인'이 가끔 안 눌리던 것", "보온병으로 물을 뜨면 바로 깨끗한 물 3개 (요리에 바로 씀)"]}, {"v": "2026.11.02-4", "notes": ["거래: 친구 명함·월드챗 신분증·길드원에게 '거래' → 교환창에서 물건·캡을 올리고 둘 다 확인하면 교환", "고침: 유태식 씨앗·로우 설계도 선물이 친밀도가 오르내릴 때 다시 뜨던 것"]}, {"v": "2026.11.02-3", "notes": ["거래: 친구 명함·월드챗 신분증·길드원에게 '거래' → 교환창에서 물건·캡을 올리고 둘 다 확인하면 교환", "교환창: 올린 칸 누르면 1개 내림 · 바꾸면 둘 다 확인 풀림"]}, {"v": "2026.11.02-2", "notes": ["야시장 상인이 밤마다 벽지 1 · 바닥재 1씩 팜 (한 번 사면 계속 씀)", "벽지·바닥재: 처음엔 기본 몇 개만, 이미 칠해 둔 건 그대로 가짐"]}, {"v": "2026.11.02-1", "notes": ["꾸미기: 칸을 누르면 미리보기 → PC는 더블클릭, 폰은 A 단추로 확정", "전기: 발전기를 돌리면 밤에 쉘터 방마다 불이 켜지고 정신력이 참", "전기 효과 강화: 잠 1시간 덜·정신력 +10, 단련 가끔 ×2, 요리 15% 빠름, 공구대 +15%, 냉장고 30%", "발전기에 말 걸어 기름 붓기 · 발전기 위에 남은 기름 표시"]}, {"v": "2026.11.01-11", "notes": ["친구 요청: 보내면 상대가 수락·거절 (수락하면 서로 명함 받음)", "쉘터 장소 메뉴에 '모닥불을 피운다' (나무 판자 2)", "지도: 모르는 곳도 위험도 표시 (숫자 + 글)"]}, {"v": "2026.11.01-10", "notes": ["폐자재 야적장에서 천 조각도 나옴 (나무 판자·고철·천 조각)", "고침: 교전 화면이 안 뜨거나 가려지던 것", "보급 꾸러미 · 수색 음식 1.6배"]}, {"v": "2026.11.01-9", "notes": ["고침: 교전이 시작될 때 전투 화면·버튼이 가려지거나 안 뜨던 것 (안 뜨면 2초 안에 다시 그림)", "보급 꾸러미: 모두에게 한 번 들개 고기 2 · 나무 판자 2", "수색에서 먹을 것이 더 잘 나옴"]}, {"v": "2026.11.01-8", "notes": ["보급 꾸러미: 모두에게 한 번 들개 고기 2 · 나무 판자 2", "수색에서 먹을 것이 더 잘 나옴 (1.6배)", "이동 시간·기력이 위치로 정해짐 · 장소 안에서 걷는 건 시간이 안 듦"]}, {"v": "2026.11.01-7", "notes": ["고침: 수색 중 사건(쓰러진 생존자 등)이 뜰 때 대사가 '…획득'으로 바뀌어 보이던 것", "이동 시간·기력이 위치로 정해짐: 쉘터 근처 2시간 · 시가지 3시간 · 공장 지대 4시간 · 항구 5시간", "장소 안에서 걷는 건 시간이 안 듦"]}, {"v": "2026.11.01-6", "notes": ["이동 시간이 위치로 정해짐: 쉘터 근처 2시간 · 시가지 3시간 · 공장 지대 4시간 · 항구 5시간 (같은 지역 안은 1시간)", "기력도 위치에 따라: 6 · 10 · 14 · 18", "배고픔은 흐른 시간만큼 (1시간에 1)", "장소 안에서 걷는 건 시간이 안 듦", "아침이면 모든 장소 뒤질 거리가 3번으로 다시 참"]}, {"v": "2026.11.01-5", "notes": ["모든 장소: 아침이 되면 뒤질 거리가 다시 3번으로 꽉 참", "물가·방사능 장소도 3번", "안쪽 방이 있는 장소: 방마다 하루 3번 수색"]}, {"v": "2026.11.01-4", "notes": ["안쪽 방이 있는 장소: 방마다 하루 3번 수색", "월드챗에서 이름을 누르면 신분증 · 친구 추가", "월드챗은 하루 지난 글이 사라짐", "시작할 때 계정 창 · 업데이트 알림", "지도 아이콘 두 번 누르면 바로 이동"]}];   // 지난 업데이트 내역 (최신이 앞) · 공지 창
 // 공지 (업데이트 내역): PC는 왼쪽 아래 '공지', 폰은 위 알림 옆 '공지'. 안 본 업데이트가 있으면 노랗게
 let newsShown = false;
 function newsUnseen() { return storeGet("rpg_newsSeen") !== GAME_VER; }
