@@ -11197,6 +11197,7 @@ const TALK = {
   jh: () => jhTalk(),
   mech: () => mechTalk(),
   ts: () => tsTalk(),
+  yj: () => yjTalk(),
   shop: () => say([[{ name: places[world.current].night ? "야시장 상인" : "상인", face: { prop: "stall" } }, places[world.current].night ? pick(NMARKET_SAY) : isNight() && !isVisited("nmarket") && Math.random() < 0.5 ? "이 시간이면 굴다리 밑에 장이 섰겠군. 거기 물건은 내 것보다 수상하지." : pick(isNight() ? NIGHT_SHOP : DAY_SHOP)]],
     [["물건을 산다", () => { tab = "place"; mode = "shop"; shopTab = "buy"; render(); }, capTxt(player.gold)], ["물건을 판다", () => { tab = "place"; mode = "shop"; shopTab = "sell"; render(); }, "가방의 물건 → 캡"], ["다음에 올게"]]),
   chest: () => world.chestLock ? say([[{ name: "잠긴 상자", face: { furn: "chest_lock" } }, itemCount("녹슨 열쇠") ? "녹슨 자물쇠가 걸려 있다. 가진 열쇠가 맞을 것 같다." : "녹슨 자물쇠가 단단히 걸려 있다. 열쇠가 있어야 열겠다."]],
