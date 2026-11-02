@@ -9954,7 +9954,7 @@ function wbMake() {
   if (wbSel.make === "pack") {
     const nx = PACK[packLv()], mats = nx ? Object.entries(nx.cost) : [];
     let C = `<div class="wbHead">배낭 고치기</div>` + wbCircle(ico("배낭"), mats);
-    C += `<p class="wbInfo">${nx ? `지금 ${bagCap()}개 → 고치면 ${nx.cap}개까지 든다` : `${bagCap()}개까지 든다 · 더 고칠 데가 없다`}</p>`;
+    C += `<p class="wbInfo">${nx ? `지금 ${bagCap()}개 → 고치면 ${bagCap() + nx.cap - PACK[packLv() - 1].cap}개까지 든다` : `${bagCap()}개까지 든다 · 더 고칠 데가 없다`}</p>`;
     if (nx) C += wl < nx.wl ? `<p class="heavy wbInfo">작업대 ${nx.wl}단계가 필요하다</p>` : `<button class="choice wbGo" onclick="upgradePack()" ${canAfford(nx.cost) && !monster ? "" : "disabled"}>고치기</button>`;
     return { L: wbMakeList(), C, need: nx ? nx.cost : {} };
   }
