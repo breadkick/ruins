@@ -65,6 +65,19 @@
   #sceneWorld.night > .busShell { filter: saturate(0.35) brightness(0.4) sepia(0.1) hue-rotate(200deg) contrast(1.1); }   /* 버스 조각: 테두리·호버 빛은 아래 한 장(busHl)이 맡음 */
   #sceneWorld > .busHl:not(.hl) { visibility: hidden; }
   #sceneWorld.night > .talkHint { filter: none; }
+  /* 안아 주기: 나는 살랑살랑, 품에 안긴 동물은 꼼지락, 하트가 몽글몽글 · 낯가리면 펄쩍 빠져나감 */
+  #sceneWorld > .obj.hugging { animation: hugSway 0.85s ease-in-out 2 both; }
+  @keyframes hugSway { 0%, 100% { rotate: 0deg; } 25% { rotate: -4deg; } 75% { rotate: 4deg; } }
+  #sceneWorld > .hugPet { pointer-events: none; transform-origin: 50% 100%; animation: hugSqueeze 0.42s ease-in-out infinite alternate; }
+  @keyframes hugSqueeze { from { scale: 1 1; } to { scale: 1.08 0.92; } }
+  #sceneWorld > .hugHeart, #sceneWorld.night > .hugHeart, #sceneWorld.night.lit > .hugHeart { position: absolute; z-index: 998; pointer-events: none; filter: none; width: 7px; height: 6px; opacity: 0; animation: hugHeart 1.25s ease-out both; }
+  #sceneWorld > .hugHeart .pix { width: 100%; height: 100%; display: block; }
+  @keyframes hugHeart { 0% { opacity: 0; translate: 0 4px; scale: 0.5; } 20% { opacity: 1; scale: 1.1; } 35% { scale: 1; } 100% { opacity: 0; translate: var(--dx, 0px) -20px; } }
+  #sceneWorld > .obj.hugNo { animation: hugNo 0.55s ease-out 1 both; }
+  @keyframes hugNo { 0% { translate: 0 0; } 30% { translate: 0 -9px; } 60% { translate: 0 0; } 78% { translate: 0 -3px; } 100% { translate: 0 0; } }
+  #sceneWorld > .obj.hugLean { transform-origin: 50% 100%; animation: hugLean 0.85s ease-in-out 2 both; }
+  @keyframes hugLean { 50% { rotate: -5deg; } }
+  @media (prefers-reduced-motion: reduce) { #sceneWorld > .obj.hugging, #sceneWorld > .hugPet, #sceneWorld > .obj.hugNo, #sceneWorld > .obj.hugLean { animation: none; } }
   /* 조사할 물건 외곽선: 손 닿는 것(Space) · 지금 살펴보는 것 · 마우스를 올린 것 */
   #sceneWorld > .obj.hl { filter: saturate(0.9) sepia(0.1) drop-shadow(1px 0 0 #ffe58a) drop-shadow(-1px 0 0 #ffe58a) drop-shadow(0 1px 0 #ffe58a) drop-shadow(0 -1px 0 #ffe58a) !important; }
   #sceneWorld.night > .obj.hl { filter: saturate(0.5) brightness(0.6) sepia(0.1) hue-rotate(200deg) contrast(1.1) drop-shadow(1px 0 0 #ffe58a) drop-shadow(-1px 0 0 #ffe58a) drop-shadow(0 1px 0 #ffe58a) drop-shadow(0 -1px 0 #ffe58a) !important; }
@@ -3450,7 +3463,7 @@ function drawScene(id) {
       const pos = isoPos(at.x, at.y), top = pos.top + 11 - r[3];
       things.push({ kind: "hen", pet: k, x: at.x, y: at.y, walk: true, onlyFace: true, hx: pos.left + 6, hy: top - 14 });
       if (sleep) html += `<div class="sleepZ" style="left:${pos.left + 20}px;top:${top - 4}px"><i>z</i><i>z</i></div>`;
-      html += `<div class="obj pet hen" data-thing="${things.length - 1}" data-pet="${k}" data-art="hen" data-bk="${bk}" style="left:${pos.left + 16 - Math.round(r[2] / 2)}px;top:${top}px;width:${r[2]}px;height:${r[3]}px;background-position:${-r[0]}px ${-r[1]}px;z-index:${(at.x + at.y) * 2 + 1}${petFace[k] ? ";transform:scaleX(-1)" : ""}"></div>`;
+      html += `<div class="obj pet hen${hugCls(k)}" data-thing="${things.length - 1}" data-pet="${k}" data-art="hen" data-bk="${bk}" style="${hugHeld(k) ? "visibility:hidden;" : ""}${hugCls(k) ? hugDelay() : ""}left:${pos.left + 16 - Math.round(r[2] / 2)}px;top:${top}px;width:${r[2]}px;height:${r[3]}px;background-position:${-r[0]}px ${-r[1]}px;z-index:${(at.x + at.y) * 2 + 1}${petFace[k] ? ";transform:scaleX(-1)" : ""}"></div>`;
     }
   }
   // 뒤뜰 젖소: 낮엔 느릿느릿 돌아다니고, 여물을 막 주면 여물통으로, 밤엔 짚더미 옆에 엎드려 잠
@@ -3471,7 +3484,7 @@ function drawScene(id) {
       const pos = isoPos(at.x, at.y), top = pos.top + 13 - r[3];
       things.push({ kind: "cow", pet: k, x: at.x, y: at.y, walk: true, onlyFace: true, hx: pos.left + 6, hy: top - 12 });
       if (lie && night) html += `<div class="sleepZ" style="left:${pos.left + 26}px;top:${top - 2}px"><i>z</i><i>z</i></div>`;
-      html += `<div class="obj pet cow" data-thing="${things.length - 1}" data-pet="${k}" data-art="cow" data-bk="${bk}" style="left:${pos.left + 16 - Math.round(r[2] / 2)}px;top:${top}px;width:${r[2]}px;height:${r[3]}px;background-position:${-r[0]}px ${-r[1]}px;z-index:${(at.x + at.y) * 2 + 1}${petFace[k] ? ";transform:scaleX(-1)" : ""}"></div>`;
+      html += `<div class="obj pet cow${hugCls(k)}" data-thing="${things.length - 1}" data-pet="${k}" data-art="cow" data-bk="${bk}" style="${hugCls(k) ? hugDelay() : ""}left:${pos.left + 16 - Math.round(r[2] / 2)}px;top:${top}px;width:${r[2]}px;height:${r[3]}px;background-position:${-r[0]}px ${-r[1]}px;z-index:${(at.x + at.y) * 2 + 1}${petFace[k] ? ";transform:scaleX(-1)" : ""}"></div>`;
     }
   }
   // 펫: 집에 있는 펫(쉘터 방)과 데리고 나온 펫(내 뒤). 밟고 지나갈 수 있고, 바라볼 때만 말 걸 대상
@@ -3497,7 +3510,7 @@ function drawScene(id) {
       const pos = isoPos(at.x, at.y), top = pos.top + 11 - r[3];
       things.push({ kind: "pet", pet: k, x: at.x, y: at.y, walk: true, onlyFace: true, hx: pos.left + 6, hy: top - 14 });
       if (fr === "sitz" && isNight()) html += `<div class="sleepZ" style="left:${pos.left + 16 + Math.round(r[2] / 2) - 4}px;top:${top - 4}px"><i>z</i><i>z</i></div>`;   // 밤엔 눈 감고 잠: 작은 z로 자는 걸 보여 줌
-      html += `<div class="obj pet" data-thing="${things.length - 1}" data-pet="${k}" data-bk="${bk}"${sit ? ` data-sit="1"` : ""} style="left:${pos.left + 16 - Math.round(r[2] / 2)}px;top:${top}px;width:${r[2]}px;height:${r[3]}px;background-position:${-r[0]}px ${-r[1]}px;z-index:${(at.x + at.y) * 2 + 1}${petFace[k] ? ";transform:scaleX(-1)" : ""}"></div>`;
+      html += `<div class="obj pet${hugCls(k)}" data-thing="${things.length - 1}" data-pet="${k}" data-bk="${bk}"${sit ? ` data-sit="1"` : ""} style="${hugHeld(k) ? "visibility:hidden;" : ""}${hugCls(k) ? hugDelay() : ""}left:${pos.left + 16 - Math.round(r[2] / 2)}px;top:${top}px;width:${r[2]}px;height:${r[3]}px;background-position:${-r[0]}px ${-r[1]}px;z-index:${(at.x + at.y) * 2 + 1}${petFace[k] ? ";transform:scaleX(-1)" : ""}"></div>`;
     }
   }
   // 동료: 지내는 곳에서 돌아다니고, 데리고 나온 동료는 내 뒤 (펫 다음 칸). 밟고 지나갈 수 있고 바라볼 때만 말 걸 대상
@@ -3535,7 +3548,7 @@ function drawScene(id) {
   sceneThings = id === world.current ? things : [];
   // 손 닿는 곳에 있는 물건 위에 표시
   const fxBusy = farmFx && performance.now() - farmFx.t0 < 900;   // 물 주는 동안은 머리 위 표시를 잠깐 숨김
-  const near = !dlg && !monster && !decoActive() && !(fxBusy && p.type === "yard") && thingNear();
+  const near = !dlg && !monster && !decoActive() && !(fxBusy && p.type === "yard") && !hugOn() && thingNear();   // 안아 주는 동안은 손 닿는 표시를 숨김
   const hlT = id !== world.current || decoActive() || monster ? null : dlg ? (examTarget && things.find(s => s.x === examTarget.x && s.y === examTarget.y && s.kind === examTarget.kind)) : near;
   const hlSet = hlT ? new Set(things.map((s, i) => s === hlT || (hlT.grp && s.grp === hlT.grp) ? i : -1).filter(i => i >= 0)) : null;
   if (near) { const pos = isoPos(near.x, near.y), hx = near.hx ?? pos.left + 8, hy = near.hy ?? pos.top - 30; const ft = near.kind === "farm" ? plotTodo(world.base.farm[near.i]) : near.kind === "nest" && coop().eggs ? ["egg", `${coop().eggs}개`] : near.kind === "feeder" && coop().hens && coop().fed !== dayNo() ? ["grain", "모이"] : near.kind === "milkcan" && coop().milk ? ["milk", `${coop().milk}병`] : near.kind === "trough" && coop().cows && coop().cfed !== dayNo() ? ["veg", "여물"] : null;
@@ -3547,7 +3560,9 @@ function drawScene(id) {
       // 내 캐릭터: 타일과 같은 도트 크기(장면 좌표 1 = 도트 1칸). 발 중앙을 타일 윗면 중앙에.
       const b = CHAR.body, pos = isoPos(heroPos.x, heroPos.y), fx = b.footX + 0.5;
       const back = heroDir >= 2, flip = heroDir % 2 ? -1 : 1, walking = heroAnim && performance.now() - heroAnim.t0 < HERO_STEP_MS;
-      html += `<img class="obj hero" src="${heroFrames[walking ? (back ? 3 : 1) : heroStandIndex()]}" alt="" style="left:${pos.left + 16 - fx}px;top:${pos.top + HERO_FOOT - (b.footY + 1)}px;width:${b.w}px;height:${b.h}px;z-index:${(heroPos.x + heroPos.y) * 2 + 1};transform-origin:${fx}px 0;transform:scaleX(${flip})">`;
+      const hug = hugOn() && !walking, htop = pos.top + HERO_FOOT - (b.footY + 1), hz = (heroPos.x + heroPos.y) * 2 + 1;
+      html += `<img class="obj hero${hug ? " hugging" : ""}" src="${heroFrames[hug ? (hugFx.kind === "cow" ? heroStandIndex() : 0) : walking ? (back ? 3 : 1) : heroStandIndex()]}" alt="" style="${hug ? hugDelay() : ""}left:${pos.left + 16 - fx}px;top:${htop}px;width:${b.w}px;height:${b.h}px;z-index:${hz};transform-origin:${fx}px ${hug ? b.footY : 0}px;transform:scaleX(${flip})">`;
+      if (hug) html += hugOverlay(pos.left + 16, htop + b.footY + 1, hz, flip);
     } else put("hero", heroPos.x, heroPos.y);
   }
   if (walker && walker.mark && id === world.current) { const m = isoPos(walker.mark[0], walker.mark[1]); html += `<div class="walkMark" style="left:${m.left + 5}px;top:${m.top - 3}px"></div>`; }
@@ -4578,10 +4593,34 @@ function petRename(k) {
     go: ["바꾼다", () => { const v = petNameDraft.replace(/[<>"'&`\\]/g, "").trim().slice(0, 8); if (!v || v === Q.name) return; log(`${Q.name}의 이름을 ‘${v}’${jo(v, "으로", "로")} 바꿨다.`); Q.name = v; render(); }], stay: "그만둔다" });
   setTimeout(() => { const el = document.querySelector(".petNameIn"); if (el) { el.focus(); el.select(); } }, 30);
 }
+// 안아 주기 모션 (저장 안 함): k = 펫 키 · "hen0" 같은 닭 · "cow0" 같은 소. fail = 낯가려서 빠져나감
+let hugFx = null; const HUG_MS = 1800;
+function hugStart(k, kind, fail) {
+  if (!["shelter", "yard", "pen"].includes(world.current) && !(kind === "pet" && petOut() === k)) return;
+  const t0 = performance.now(), T = (sceneThings || []).find(t => t.pet === k); hugFx = { k, kind, fail: !!fail, t0, at: { ...heroPos }, place: world.current, tile: T ? { x: T.x, y: T.y } : null };
+  setTimeout(() => { if (hugFx && hugFx.t0 === t0) { hugFx = null; if (view === "scene" && selectedPlace === world.current) drawScene(world.current); } }, HUG_MS + 60);
+}
+// 품에 안긴 동물(가슴께)과 머리 위 하트. cx = 내 발 가운데 x · foot = 발 y
+function hugOverlay(cx, foot, z, flip) {
+  const F = hugFx, el = performance.now() - F.t0, art = F.kind === "pet" ? F.k : F.kind;
+  let h = "";
+  if (!F.fail && F.kind !== "cow") {
+    const r = PET_ART.map[`${art}_sit`] || PET_ART.map[`${art}_s`];
+    if (r) h += `<div class="obj pet hugPet" style="${hugDelay()}left:${Math.round(cx - r[2] / 2)}px;top:${Math.round(foot - 11 - r[3])}px;width:${r[2]}px;height:${r[3]}px;background-position:${-r[0]}px ${-r[1]}px;z-index:${z + 1};transform:scaleX(${-flip})"></div>`;
+  }
+  const tp = F.tile && isoPos(F.tile.x, F.tile.y), hx = !tp ? cx : F.fail ? tp.left + 16 : F.kind === "cow" ? (cx + tp.left + 16) / 2 : cx, hy = !tp ? foot - 40 : F.fail ? tp.top - 14 : F.kind === "cow" ? Math.min(foot, tp.top + 13) - 36 : foot - 40;   // 낯가림: 땀은 동물 머리 위 · 소: 나와 소 사이
+  const hearts = F.fail ? [[0, "sweat", 0, 0]] : [[0, "heart", -5, -2], [380, "heart", 4, 2], [760, "heart", -1, -1]];
+  for (const [d, ic, dx, ox] of hearts) h += `<div class="hugHeart" style="animation-delay:${d - Math.round(el)}ms;--dx:${dx}px;left:${Math.round(hx - 3 + ox * 3)}px;top:${hy}px">${pixArt(ic)}</div>`;
+  return h;
+}
+function hugOn() { return !!hugFx && hugFx.place === world.current && performance.now() - hugFx.t0 < HUG_MS && heroPos.x === hugFx.at.x && heroPos.y === hugFx.at.y; }
+function hugHeld(k) { return hugOn() && !hugFx.fail && hugFx.kind !== "cow" && hugFx.k === k; }   // 품에 안긴 동물은 제자리에서 숨김
+function hugCls(k) { return !hugOn() || hugFx.k !== k ? "" : hugFx.fail ? " hugNo" : hugFx.kind === "cow" ? " hugLean" : ""; }
+function hugDelay() { return `animation-delay:${-Math.round(performance.now() - hugFx.t0)}ms;`; }
 function petHug(k) {
   const Q = petOf(k); if (!Q) return;
   if (!daily("hug_" + k)) { log(`${Q.name}${jo(Q.name, "은", "는")} 오늘 충분히 안아 줬다.`); render(); return; }
-  const t = petTier(k), v = Math.round([2, 6, 9][t] * petSanMul(k)); sanAdd(v); petAff(k, t ? 3 : 1);
+  const t = petTier(k), v = Math.round([2, 6, 9][t] * petSanMul(k)); sanAdd(v); petAff(k, t ? 3 : 1); hugStart(k, "pet", !t);
   log(`${Q.name}${jo(Q.name, "을", "를")} 꼭 안았다. ${PET_HUG[k] ? PET_HUG[k][t] : ""} (정신력 +${v} · 친밀도 ${Q.aff})`); render();
 }
 function petTalk(k) {
@@ -4706,13 +4745,13 @@ function cowPat() {
   if (!daily("cowPat")) { log("젖소는 오늘 충분히 쓰다듬었다."); render(); return; }
   sanAdd(3); log("젖소 이마를 쓰다듬었다. 눈을 지그시 감고 머리를 들이민다. (정신력 +3)"); render();
 }
-function cowHug() {
+function cowHug(k) {
   if (!daily("cowHug")) { log("젖소는 오늘 충분히 안아 줬다."); render(); return; }
-  sanAdd(4); log("젖소 목을 끌어안았다. 음매, 하고 커다란 머리를 어깨에 기대 온다. 따뜻하고 묵직하다. (정신력 +4)"); render();
+  sanAdd(4); hugStart(k || "cow0", "cow"); log("젖소 목을 끌어안았다. 음매, 하고 커다란 머리를 어깨에 기대 온다. 따뜻하고 묵직하다. (정신력 +4)"); render();
 }
-function henHug() {
+function henHug(k) {
   if (!daily("henHug")) { log("닭들은 오늘 충분히 안아 줬다."); render(); return; }
-  sanAdd(2); log("암탉을 품에 안았다. 꼬꼬댁, 잠깐 버둥대더니 얌전해진다. 깃털이 보송하다. (정신력 +2)"); render();
+  sanAdd(2); hugStart(k || "hen0", "hen"); log("암탉을 품에 안았다. 꼬꼬댁, 잠깐 버둥대더니 얌전해진다. 깃털이 보송하다. (정신력 +2)"); render();
 }
 const HEN_SAY = ["발밑 흙을 열심히 헤집는다.", "꼬꼬댁. 고개를 갸웃하며 쳐다본다.", "날개를 푸드득 털더니 다시 땅을 쫀다.", "모이통 쪽을 자꾸 힐끔거린다."];
 function henShopNote() { return hasFacility("coop") ? `뒤뜰 ${facName("coop")} ${coop().hens}/${henCap()}마리` : "축사가 있어야 키운다"; }
@@ -4764,7 +4803,7 @@ setInterval(() => {   // 방석에 앉은 펫이 낮에 가끔 눈을 깜빡임
   setTimeout(() => { petBlink = null; if (n.isConnected) n.style.backgroundPosition = `${-ro[0]}px ${-ro[1]}px`; }, 220);
 }, 700);
 setInterval(() => {   // 집에 있는 펫이 가끔 한 칸씩 돌아다님
-  if (document.hidden || view !== "scene" || selectedPlace !== world.current || dlg || monster || creating || walker || decoActive() || (heroAnim && performance.now() - heroAnim.t0 < HERO_STEP_MS)) return;
+  if (document.hidden || view !== "scene" || selectedPlace !== world.current || dlg || monster || creating || walker || decoActive() || hugOn() || (heroAnim && performance.now() - heroAnim.t0 < HERO_STEP_MS)) return;
   const id = world.current; let moved = false;
   for (const k of Object.keys(pets())) {
     const sp = petSpot[k]; if (!petHome(k) || petScene(k) !== id || !petInRoom(k) || !sp) continue;
@@ -8251,7 +8290,7 @@ function plotTodo(pl) {
   return ["sprout", `${plotLeft(pl)}시간`];
 }
 // 색 도트 아이콘 (글자 하나 = 색 하나)
-const PIX_PAL = { e: "#f6eedc", E: "#cdb994", t: "#5f9e8c", T: "#3b6a5e", k: "#1a1612", b: "#7fb0d4", B: "#4f7fa6", g: "#7fbf4a", G: "#4f8a2e", s: "#7a5232", y: "#d9b45a", Y: "#a8822e", w: "#e8f4ff" };
+const PIX_PAL = { r: "#e2526a", R: "#ff9cae", e: "#f6eedc", E: "#cdb994", t: "#5f9e8c", T: "#3b6a5e", k: "#1a1612", b: "#7fb0d4", B: "#4f7fa6", g: "#7fbf4a", G: "#4f8a2e", s: "#7a5232", y: "#d9b45a", Y: "#a8822e", w: "#e8f4ff" };
 const FARM_ICON = {
   can: ["....kkk.....", "...k...k....", "..kkkkkkk..k", "..kbbbbbk.kb", "..kbwbbbkkB.", "..kbbbbbbB..", "..kBBBBBk...", "...kkkkk...."],
   sprout: ["..g...g.", ".gGg.gGg", "..gGgGg.", "...gGg..", "....g...", ".ssssss.", "ssssssss"],
@@ -8259,6 +8298,8 @@ const FARM_ICON = {
   drop: ["..b..", ".bbb.", "bbwbb", "bbbbb", ".bbb."],
   egg: ["..kkk..", ".keeek.", ".kweek.", "keweeek", "keeeeek", "keeeeEk", ".keeEk.", "..kkk.."],
   grain: ["...y...", "..yYy..", ".y.y.y.", "yYyYyYy", ".YyYyY.", "..kkk.."],
+  heart: [".kk.kk.", "kRrkrrk", "krrrrrk", ".krrrk.", "..krk..", "...k..."],
+  sweat: ["..b..", ".bwb.", "bwbbb", "bbbbb", ".bbb."],
   milk: ["..kkk..", "..kBk..", ".kwwwk.", ".kwwwk.", ".kbbbk.", ".kbwbk.", ".kwwek.", "..kkk.."],
   veg: ["..g.g..", ".gGgGg.", "gGgGgGg", ".gGgGg.", "..gGg..", "...s..."],
   dry: ["..k..", ".k.k.", "k...k", "k...k", ".kkk."],
@@ -11458,9 +11499,9 @@ const TALK = {
     if (!C.hens) say([[F, "빈 모이통이다. 닭이 생기면 곡식을 부어 주자."]]);
     else if (C.fed === dayNo()) say([[F, "오늘 모이는 넉넉히 부어 줬다. 내일 아침이면 알을 낳겠지."]]);
     else say([[F, `텅 비었다. 닭 ${C.hens}마리가 먹으려면 곡식 ${feedNeed()}개가 든다.`]], [["모이를 붓는다", coopFeed, feedHave() >= feedNeed() ? `곡식 ${feedNeed()}개` : `곡식 부족 · ${COOP_FEED.slice(0, 3).join("·")}`], ["그만둔다"]]); },
-  hen: () => (sfx("cluck"), say([[{ name: "암탉", face: { pet: "hen" } }, isNight() ? "닭장 앞에 웅크려 꾸벅꾸벅 존다." : pick(HEN_SAY)]], [["쓰다듬는다", henPat, "정신력 회복", "henPat"], ["안아 준다", henHug, "정신력 회복", "henHug"], ["그만둔다"]])),
-  cow: () => { const C = coop(), lie = isNight(); sfx("moo"); say([[{ name: "젖소", face: { pet: "cow" } }, lie ? "짚더미 옆에 엎드려 되새김질하며 존다." : pick(COW_SAY)]],
-    [["쓰다듬는다", cowPat, "정신력 회복", "cowPat"], ["안아 준다", cowHug, "정신력 회복", "cowHug"], ...(C.cfed !== dayNo() ? [["여물을 준다", cowFeed, cowFeedPick(itemCount) ? cowFeedPick(itemCount).map(([n, k]) => `${n} ${k}`).join(", ") : "여물 부족"]] : []), ["그만둔다"]]); },
+  hen: t => (sfx("cluck"), say([[{ name: "암탉", face: { pet: "hen" } }, isNight() ? "닭장 앞에 웅크려 꾸벅꾸벅 존다." : pick(HEN_SAY)]], [["쓰다듬는다", henPat, "정신력 회복", "henPat"], ["안아 준다", () => henHug(t && t.pet), "정신력 회복", "henHug"], ["그만둔다"]])),
+  cow: t => { const C = coop(), lie = isNight(); sfx("moo"); say([[{ name: "젖소", face: { pet: "cow" } }, lie ? "짚더미 옆에 엎드려 되새김질하며 존다." : pick(COW_SAY)]],
+    [["쓰다듬는다", cowPat, "정신력 회복", "cowPat"], ["안아 준다", () => cowHug(t && t.pet), "정신력 회복", "cowHug"], ...(C.cfed !== dayNo() ? [["여물을 준다", cowFeed, cowFeedPick(itemCount) ? cowFeedPick(itemCount).map(([n, k]) => `${n} ${k}`).join(", ") : "여물 부족"]] : []), ["그만둔다"]]); },
   trough: () => { const C = coop(), F = { name: "여물통", face: { prop: C.cfed === dayNo() ? "cow_trough" : "cow_trough0" } };
     if (!C.cows) say([[F, "빈 여물통이다. 젖소가 생기면 채소나 곡식을 넣어 주자."]]);
     else if (C.cfed === dayNo()) say([[F, "오늘 여물은 넉넉히 넣어 줬다. 내일 아침이면 우유가 찰 거다."]]);
@@ -12274,9 +12315,9 @@ function renderAcctPop() {
   if (keep) { const e2 = [...el.querySelectorAll("input")].find(i => i.placeholder === keep.ph); if (e2) { e2.focus(); try { e2.setSelectionRange(keep.s, keep.s); } catch (e) {} } }
 }
 // 버전: 바뀌면 처음 열 때 업데이트 내용 창. 웹에 올린 판이면 version.json 을 10분마다 보고 새 판이 나오면 새로고침 창
-const GAME_VER = "2026.11.02-25";
-const PATCH_NOTES = ["[베타] 관리자 칸: 펫 데려오기(종마다 버튼 · 전부), 펫 전부 단짝, 시설 전부 최고 단계, 축사 닭·젖소 가득, 둥지·우유 통 채우기, 밤으로, 동료 한 명 데려오기", "[베타] 젖소·우유·토끼 펫·동물 안아 주기 (지난 베타)"];
-const PATCH_LOG = [{"v": "2026.11.02-25", "notes": ["[베타] 관리자 칸: 펫 데려오기(종마다 버튼 · 전부), 펫 전부 단짝, 시설 전부 최고 단계, 축사 닭·젖소 가득, 둥지·우유 통 채우기, 밤으로, 동료 한 명 데려오기", "[베타] 젖소·우유·토끼 펫·동물 안아 주기 (지난 베타)"]}, {"v": "2026.11.02-24", "notes": ["[베타] 젖소: 축사 2단계에 1마리·3단계에 2마리. 낮 상인이 판다 (220캡). 뒤뜰 여물통에 채소(배추·당근·호박·옥수수)나 곡식을 주면 다음 날 아침 우유 통에 우유가 찬다", "[베타] 우유: 그냥 마셔도 되고, 따뜻한 우유·달걀 푸딩·우유 수프를 만든다. 닭 당번이 우유도 걷고 여물도 준다", "[베타] 토끼 펫: 버려진 농장·온실을 수색하다 만난다 (채소로 데려옴). 데리고 다니면 도망이 잘되고, 쉘터에 두면 쓰다듬기·안기 정신력 1.5배", "[베타] 펫·닭·젖소를 안아 줄 수 있다 (하루 한 번 정신력 회복, 낯가리는 펫은 버둥대며 빠져나감)"]}, {"v": "2026.11.02-23", "notes": ["도움말(?)에 '축사' 항목 추가: 닭 사는 곳, 모이로 쓰는 곡식, 달걀 나오는 규칙, 닭 당번"]}, {"v": "2026.11.02-22", "notes": ["작업대·침낭(침대)·화로·선반 같은 시설도 꾸미기에서 다른 방으로 옮길 수 있음 (시설을 고르고 '다른 방으로 옮기기')"]}, {"v": "2026.11.02-21", "notes": ["꾸미기에서 가구를 다른 방(방·부엌·거실)으로 바로 옮길 수 있음. 가구를 고르고 '다른 방으로 옮기기' → 그 방에서 놓을 칸을 누름. 수납 가구 안의 물건도 그대로"]}, {"v": "2026.11.02-20", "notes": ["펫이 지낼 방을 고를 수 있음 (방·부엌·거실 중 열린 곳). 펫에게 말 걸어 '지낼 방을 정한다' 또는 인연 탭 펫 줄에서 고름. 방석은 어느 방에 둬도 됨"]}, {"v": "2026.11.02-19", "notes": ["무기를 바꿔 들어도 강화·개조가 사라지지 않음. 가방에 넣어 두면 기억했다가 그 무기를 다시 들면 그대로 돌아옴", "배낭 고치기 화면의 '고치면 ○개' 숫자가 지구력 보너스를 빼고 적히던 문제 고침"]}, {"v": "2026.11.02-18", "notes": ["동료 수색은 이제 권장 공격력(내가 갈 만한 곳)이 돼야 물건을 주워 옴. 모자란 곳에 보내면 빈손으로 크게 다쳐서 돌아옴", "수색 지도에서 권장 공격력이 모자란 곳은 붉게 빛나고, 고를 때 권장/지금 공격력이 보임"]}, {"v": "2026.11.02-17", "notes": ["동료 수색: [수색을 다녀온다]를 누르면 지도가 열려서 갈 곳을 직접 눌러 고름. 하루 걸려 다음 날 아침에 돌아옴", "수색은 한 번만 보내거나 '매일 다녀와'로 보내기 (아침마다 같은 곳으로 다시 떠남 · 동료 칸에서 끔)", "랜턴은 이제 배터리로 충전 (배터리 1개로 가득 · 기름통은 안 씀)", "바리케이드 전기 철조망: 배터리 1개 = 밤 3번. 습격 확률 절반, 그래도 쳐들어오면 놈들이 감전돼 HP -25%", "정비사 개조 '전기 코일' (소방도끼·합금 대검·엔진 톱 같은 상위 무기만): 공격 +3 · 기절 +10% · 배터리 2개", "고침: 무한의 탑에 같이 가자고 하지 않은 동료가 따라오던 문제"]}, {"v": "2026.11.02-16", "notes": ["몬스터 레벨 맞춤 비율 조정: 레벨마다 체력 +8% · 방어 +0.24 (테스트 창 결과 반영)", "무한의 탑: 10층까지는 1~2마리로 천천히 세져서 보통 캐릭터도 깰 수 있게 · 11층부터 확 세짐 · 층 사이 회복 15% → 20%"]}, {"v": "2026.11.02-15", "notes": ["고침: 교전 화면에서 유태식·로우·N12가 몬스터 반대쪽을 보던 것", "고침: 대사창 이모티콘(하트·땀 등)이 잘려 안 보이던 것 → 대사창 안 위쪽에 뜸"]}, {"v": "2026.11.02-14", "notes": ["무한의 탑: 층 보상은 모아 뒀다가 5·10·15층… 쉬는 층에서 멈춰야 챙김 · 그 전에 쓰러지거나 내려가면 모은 보상만 잃음", "교전 중 '붕대'를 누르면 붕대·약초 붕대 등 치료 물건을 골라 쓸 수 있음 (탑에선 층마다 합쳐서 5번)", "고침: 무리 교전에서 다음 놈이 나올 때 행동 단추가 사라지던 것"]}, {"v": "2026.11.02-13", "notes": ["업데이트 알림: 패치가 여러 번 나와도 마지막 공지 하나만 뜸 · '새 버전' 창에서 본 내역은 새로고침 뒤 또 안 뜸 · 전투·대화·다른 창이 떠 있으면 끝난 뒤에 알림"]}, {"v": "2026.11.02-12", "notes": ["고침: 무한의 탑 입장 창에 태그 글자(span)가 그대로 보이던 것 · 길드 게시판·길드원 대사도 같이"]}, {"v": "2026.11.02-11", "notes": ["무한의 탑: 쉘터에서 입장 · 하루(현실 날짜) 3번 · 층마다 1~5마리 무리, 점점 엄청 세짐 · 붕대는 층마다 5번 · 쓰러져도 잃는 것 없음", "탑 보상(확률): 핏빛 결정(출혈) · 충격 코일(기절) · 날 선 파편(강타) → 무기에 박으면 그 무기 종류에 계속 남음 · 10층마다 그 층부터 다시 오를 수 있음", "몬스터 무리: 랜덤 조우·습격에서 최대 5마리가 한 놈씩 차례로 덤빔 · 습격은 내 레벨에 맞는 놈들로", "몬스터가 내 레벨에 맞춰 체력·공격·방어가 오름 (방어 = 한 방마다 그만큼 덜 들어감)", "새 능력치 '방어'(받는 피해 -2%씩)·'민첩'(피하기·도주) · 능력치 최대 20 → 50", "경험치 0.6배 · 수색에서 음식 나올 확률 줄임"]}, {"v": "2026.11.02-10", "notes": ["공지 창: 지금까지 업데이트 내역을 볼 수 있음 (PC 왼쪽 아래 '공지' · 폰은 위쪽 알림 옆 '공지')", "친밀도: 아침밥으로는 안 오름 · 이야기와 선물은 동료마다 현실 시간 30분에 한 번", "고백 알림 같은 친밀도 구간 알림은 딱 한 번만"]}, {"v": "2026.11.02-9", "notes": ["고침: 폰에서 선택지가 많으면 대사창 위가 잘리던 것 (장면 안에서 스크롤)", "고침: 이동 중 사건(떠돌이 상인 등)이 뜨면 거기서 멈춤 → 다음 곳 전투가 사건 대사창과 겹치지 않게", "N12·진혁·로우·태식은 떠나보내도 하루 뒤 처음 만난 곳에 돌아와 있음 (다시 데려오면 친밀도 -10, 기록 그대로)"]}, {"v": "2026.11.02-8", "notes": ["밤 습격: 발전기가 돌면 밤 10시·1시·4시마다 10% (바리케이드·펫·진혁으로 줄어듦)", "쉘터에 있으면 문 앞 교전(자다가 깨면 잔 만큼만 회복) · 밖에 있으면 수납 상자에서 2개쯤 털림", "N12 전기공 · 진혁 경계병 전용 특기"]}, {"v": "2026.11.02-7", "notes": ["N12 전용 특기 '전기공': 쉘터에 있으면 발전기 기름 이틀에 한 통 · 전기 가구 수리 재료 절반 · 친해지면 아침마다 배터리 · 단짝이면 공구대 +20%", "이진혁 전용 특기 '경계병': 쉘터에 있으면 밤 습격 절반 · 절반은 먼저 막아 줌 · 데리고 나가면 기습 -40% · 도주 +20% · 친해지면 사흘마다 탄약 3발"]}, {"v": "2026.11.02-6", "notes": ["거래 고침: 주고받는 도중 한쪽이 모자라서 취소돼도 물건이 사라지지 않게 (둘 다 준비된 뒤 한 번에 바꿈)", "거래 고침: 끝나지 않은 거래를 새 거래가 덮어쓰지 않게 · 새로고침해도 이어서 끝남", "거래 기록에 준 것·받은 것이 같이 남음"]}, {"v": "2026.11.02-5", "notes": ["고침: 동료 질문에 답하면 대답 대사만 뜨게 (친밀도·선물 글이 대사창에 또 뜨던 것)", "고침: 교환창 '확인'이 가끔 안 눌리던 것", "보온병으로 물을 뜨면 바로 깨끗한 물 3개 (요리에 바로 씀)"]}, {"v": "2026.11.02-4", "notes": ["거래: 친구 명함·월드챗 신분증·길드원에게 '거래' → 교환창에서 물건·캡을 올리고 둘 다 확인하면 교환", "고침: 유태식 씨앗·로우 설계도 선물이 친밀도가 오르내릴 때 다시 뜨던 것"]}, {"v": "2026.11.02-3", "notes": ["거래: 친구 명함·월드챗 신분증·길드원에게 '거래' → 교환창에서 물건·캡을 올리고 둘 다 확인하면 교환", "교환창: 올린 칸 누르면 1개 내림 · 바꾸면 둘 다 확인 풀림"]}, {"v": "2026.11.02-2", "notes": ["야시장 상인이 밤마다 벽지 1 · 바닥재 1씩 팜 (한 번 사면 계속 씀)", "벽지·바닥재: 처음엔 기본 몇 개만, 이미 칠해 둔 건 그대로 가짐"]}, {"v": "2026.11.02-1", "notes": ["꾸미기: 칸을 누르면 미리보기 → PC는 더블클릭, 폰은 A 단추로 확정", "전기: 발전기를 돌리면 밤에 쉘터 방마다 불이 켜지고 정신력이 참", "전기 효과 강화: 잠 1시간 덜·정신력 +10, 단련 가끔 ×2, 요리 15% 빠름, 공구대 +15%, 냉장고 30%", "발전기에 말 걸어 기름 붓기 · 발전기 위에 남은 기름 표시"]}, {"v": "2026.11.01-11", "notes": ["친구 요청: 보내면 상대가 수락·거절 (수락하면 서로 명함 받음)", "쉘터 장소 메뉴에 '모닥불을 피운다' (나무 판자 2)", "지도: 모르는 곳도 위험도 표시 (숫자 + 글)"]}, {"v": "2026.11.01-10", "notes": ["폐자재 야적장에서 천 조각도 나옴 (나무 판자·고철·천 조각)", "고침: 교전 화면이 안 뜨거나 가려지던 것", "보급 꾸러미 · 수색 음식 1.6배"]}, {"v": "2026.11.01-9", "notes": ["고침: 교전이 시작될 때 전투 화면·버튼이 가려지거나 안 뜨던 것 (안 뜨면 2초 안에 다시 그림)", "보급 꾸러미: 모두에게 한 번 들개 고기 2 · 나무 판자 2", "수색에서 먹을 것이 더 잘 나옴"]}, {"v": "2026.11.01-8", "notes": ["보급 꾸러미: 모두에게 한 번 들개 고기 2 · 나무 판자 2", "수색에서 먹을 것이 더 잘 나옴 (1.6배)", "이동 시간·기력이 위치로 정해짐 · 장소 안에서 걷는 건 시간이 안 듦"]}, {"v": "2026.11.01-7", "notes": ["고침: 수색 중 사건(쓰러진 생존자 등)이 뜰 때 대사가 '…획득'으로 바뀌어 보이던 것", "이동 시간·기력이 위치로 정해짐: 쉘터 근처 2시간 · 시가지 3시간 · 공장 지대 4시간 · 항구 5시간", "장소 안에서 걷는 건 시간이 안 듦"]}, {"v": "2026.11.01-6", "notes": ["이동 시간이 위치로 정해짐: 쉘터 근처 2시간 · 시가지 3시간 · 공장 지대 4시간 · 항구 5시간 (같은 지역 안은 1시간)", "기력도 위치에 따라: 6 · 10 · 14 · 18", "배고픔은 흐른 시간만큼 (1시간에 1)", "장소 안에서 걷는 건 시간이 안 듦", "아침이면 모든 장소 뒤질 거리가 3번으로 다시 참"]}, {"v": "2026.11.01-5", "notes": ["모든 장소: 아침이 되면 뒤질 거리가 다시 3번으로 꽉 참", "물가·방사능 장소도 3번", "안쪽 방이 있는 장소: 방마다 하루 3번 수색"]}, {"v": "2026.11.01-4", "notes": ["안쪽 방이 있는 장소: 방마다 하루 3번 수색", "월드챗에서 이름을 누르면 신분증 · 친구 추가", "월드챗은 하루 지난 글이 사라짐", "시작할 때 계정 창 · 업데이트 알림", "지도 아이콘 두 번 누르면 바로 이동"]}];   // 지난 업데이트 내역 (최신이 앞) · 공지 창
+const GAME_VER = "2026.11.02-26";
+const PATCH_NOTES = ["[베타] 안아 주기 모션: 펫·닭은 품에 안겨 꼼지락거리고 하트가 몽글몽글 · 젖소는 옆에서 끌어안음 · 낯가리는 펫은 펄쩍 빠져나가며 땀방울", "[베타] 관리자 칸: 펫 데려오기, 시설 전부 최고, 닭·젖소 가득 (지난 베타)"];
+const PATCH_LOG = [{"v": "2026.11.02-26", "notes": ["[베타] 안아 주기 모션: 펫·닭은 품에 안겨 꼼지락거리고 하트가 몽글몽글 · 젖소는 옆에서 끌어안음 · 낯가리는 펫은 펄쩍 빠져나가며 땀방울", "[베타] 관리자 칸: 펫 데려오기, 시설 전부 최고, 닭·젖소 가득 (지난 베타)"]}, {"v": "2026.11.02-25", "notes": ["[베타] 관리자 칸: 펫 데려오기(종마다 버튼 · 전부), 펫 전부 단짝, 시설 전부 최고 단계, 축사 닭·젖소 가득, 둥지·우유 통 채우기, 밤으로, 동료 한 명 데려오기", "[베타] 젖소·우유·토끼 펫·동물 안아 주기 (지난 베타)"]}, {"v": "2026.11.02-24", "notes": ["[베타] 젖소: 축사 2단계에 1마리·3단계에 2마리. 낮 상인이 판다 (220캡). 뒤뜰 여물통에 채소(배추·당근·호박·옥수수)나 곡식을 주면 다음 날 아침 우유 통에 우유가 찬다", "[베타] 우유: 그냥 마셔도 되고, 따뜻한 우유·달걀 푸딩·우유 수프를 만든다. 닭 당번이 우유도 걷고 여물도 준다", "[베타] 토끼 펫: 버려진 농장·온실을 수색하다 만난다 (채소로 데려옴). 데리고 다니면 도망이 잘되고, 쉘터에 두면 쓰다듬기·안기 정신력 1.5배", "[베타] 펫·닭·젖소를 안아 줄 수 있다 (하루 한 번 정신력 회복, 낯가리는 펫은 버둥대며 빠져나감)"]}, {"v": "2026.11.02-23", "notes": ["도움말(?)에 '축사' 항목 추가: 닭 사는 곳, 모이로 쓰는 곡식, 달걀 나오는 규칙, 닭 당번"]}, {"v": "2026.11.02-22", "notes": ["작업대·침낭(침대)·화로·선반 같은 시설도 꾸미기에서 다른 방으로 옮길 수 있음 (시설을 고르고 '다른 방으로 옮기기')"]}, {"v": "2026.11.02-21", "notes": ["꾸미기에서 가구를 다른 방(방·부엌·거실)으로 바로 옮길 수 있음. 가구를 고르고 '다른 방으로 옮기기' → 그 방에서 놓을 칸을 누름. 수납 가구 안의 물건도 그대로"]}, {"v": "2026.11.02-20", "notes": ["펫이 지낼 방을 고를 수 있음 (방·부엌·거실 중 열린 곳). 펫에게 말 걸어 '지낼 방을 정한다' 또는 인연 탭 펫 줄에서 고름. 방석은 어느 방에 둬도 됨"]}, {"v": "2026.11.02-19", "notes": ["무기를 바꿔 들어도 강화·개조가 사라지지 않음. 가방에 넣어 두면 기억했다가 그 무기를 다시 들면 그대로 돌아옴", "배낭 고치기 화면의 '고치면 ○개' 숫자가 지구력 보너스를 빼고 적히던 문제 고침"]}, {"v": "2026.11.02-18", "notes": ["동료 수색은 이제 권장 공격력(내가 갈 만한 곳)이 돼야 물건을 주워 옴. 모자란 곳에 보내면 빈손으로 크게 다쳐서 돌아옴", "수색 지도에서 권장 공격력이 모자란 곳은 붉게 빛나고, 고를 때 권장/지금 공격력이 보임"]}, {"v": "2026.11.02-17", "notes": ["동료 수색: [수색을 다녀온다]를 누르면 지도가 열려서 갈 곳을 직접 눌러 고름. 하루 걸려 다음 날 아침에 돌아옴", "수색은 한 번만 보내거나 '매일 다녀와'로 보내기 (아침마다 같은 곳으로 다시 떠남 · 동료 칸에서 끔)", "랜턴은 이제 배터리로 충전 (배터리 1개로 가득 · 기름통은 안 씀)", "바리케이드 전기 철조망: 배터리 1개 = 밤 3번. 습격 확률 절반, 그래도 쳐들어오면 놈들이 감전돼 HP -25%", "정비사 개조 '전기 코일' (소방도끼·합금 대검·엔진 톱 같은 상위 무기만): 공격 +3 · 기절 +10% · 배터리 2개", "고침: 무한의 탑에 같이 가자고 하지 않은 동료가 따라오던 문제"]}, {"v": "2026.11.02-16", "notes": ["몬스터 레벨 맞춤 비율 조정: 레벨마다 체력 +8% · 방어 +0.24 (테스트 창 결과 반영)", "무한의 탑: 10층까지는 1~2마리로 천천히 세져서 보통 캐릭터도 깰 수 있게 · 11층부터 확 세짐 · 층 사이 회복 15% → 20%"]}, {"v": "2026.11.02-15", "notes": ["고침: 교전 화면에서 유태식·로우·N12가 몬스터 반대쪽을 보던 것", "고침: 대사창 이모티콘(하트·땀 등)이 잘려 안 보이던 것 → 대사창 안 위쪽에 뜸"]}, {"v": "2026.11.02-14", "notes": ["무한의 탑: 층 보상은 모아 뒀다가 5·10·15층… 쉬는 층에서 멈춰야 챙김 · 그 전에 쓰러지거나 내려가면 모은 보상만 잃음", "교전 중 '붕대'를 누르면 붕대·약초 붕대 등 치료 물건을 골라 쓸 수 있음 (탑에선 층마다 합쳐서 5번)", "고침: 무리 교전에서 다음 놈이 나올 때 행동 단추가 사라지던 것"]}, {"v": "2026.11.02-13", "notes": ["업데이트 알림: 패치가 여러 번 나와도 마지막 공지 하나만 뜸 · '새 버전' 창에서 본 내역은 새로고침 뒤 또 안 뜸 · 전투·대화·다른 창이 떠 있으면 끝난 뒤에 알림"]}, {"v": "2026.11.02-12", "notes": ["고침: 무한의 탑 입장 창에 태그 글자(span)가 그대로 보이던 것 · 길드 게시판·길드원 대사도 같이"]}, {"v": "2026.11.02-11", "notes": ["무한의 탑: 쉘터에서 입장 · 하루(현실 날짜) 3번 · 층마다 1~5마리 무리, 점점 엄청 세짐 · 붕대는 층마다 5번 · 쓰러져도 잃는 것 없음", "탑 보상(확률): 핏빛 결정(출혈) · 충격 코일(기절) · 날 선 파편(강타) → 무기에 박으면 그 무기 종류에 계속 남음 · 10층마다 그 층부터 다시 오를 수 있음", "몬스터 무리: 랜덤 조우·습격에서 최대 5마리가 한 놈씩 차례로 덤빔 · 습격은 내 레벨에 맞는 놈들로", "몬스터가 내 레벨에 맞춰 체력·공격·방어가 오름 (방어 = 한 방마다 그만큼 덜 들어감)", "새 능력치 '방어'(받는 피해 -2%씩)·'민첩'(피하기·도주) · 능력치 최대 20 → 50", "경험치 0.6배 · 수색에서 음식 나올 확률 줄임"]}, {"v": "2026.11.02-10", "notes": ["공지 창: 지금까지 업데이트 내역을 볼 수 있음 (PC 왼쪽 아래 '공지' · 폰은 위쪽 알림 옆 '공지')", "친밀도: 아침밥으로는 안 오름 · 이야기와 선물은 동료마다 현실 시간 30분에 한 번", "고백 알림 같은 친밀도 구간 알림은 딱 한 번만"]}, {"v": "2026.11.02-9", "notes": ["고침: 폰에서 선택지가 많으면 대사창 위가 잘리던 것 (장면 안에서 스크롤)", "고침: 이동 중 사건(떠돌이 상인 등)이 뜨면 거기서 멈춤 → 다음 곳 전투가 사건 대사창과 겹치지 않게", "N12·진혁·로우·태식은 떠나보내도 하루 뒤 처음 만난 곳에 돌아와 있음 (다시 데려오면 친밀도 -10, 기록 그대로)"]}, {"v": "2026.11.02-8", "notes": ["밤 습격: 발전기가 돌면 밤 10시·1시·4시마다 10% (바리케이드·펫·진혁으로 줄어듦)", "쉘터에 있으면 문 앞 교전(자다가 깨면 잔 만큼만 회복) · 밖에 있으면 수납 상자에서 2개쯤 털림", "N12 전기공 · 진혁 경계병 전용 특기"]}, {"v": "2026.11.02-7", "notes": ["N12 전용 특기 '전기공': 쉘터에 있으면 발전기 기름 이틀에 한 통 · 전기 가구 수리 재료 절반 · 친해지면 아침마다 배터리 · 단짝이면 공구대 +20%", "이진혁 전용 특기 '경계병': 쉘터에 있으면 밤 습격 절반 · 절반은 먼저 막아 줌 · 데리고 나가면 기습 -40% · 도주 +20% · 친해지면 사흘마다 탄약 3발"]}, {"v": "2026.11.02-6", "notes": ["거래 고침: 주고받는 도중 한쪽이 모자라서 취소돼도 물건이 사라지지 않게 (둘 다 준비된 뒤 한 번에 바꿈)", "거래 고침: 끝나지 않은 거래를 새 거래가 덮어쓰지 않게 · 새로고침해도 이어서 끝남", "거래 기록에 준 것·받은 것이 같이 남음"]}, {"v": "2026.11.02-5", "notes": ["고침: 동료 질문에 답하면 대답 대사만 뜨게 (친밀도·선물 글이 대사창에 또 뜨던 것)", "고침: 교환창 '확인'이 가끔 안 눌리던 것", "보온병으로 물을 뜨면 바로 깨끗한 물 3개 (요리에 바로 씀)"]}, {"v": "2026.11.02-4", "notes": ["거래: 친구 명함·월드챗 신분증·길드원에게 '거래' → 교환창에서 물건·캡을 올리고 둘 다 확인하면 교환", "고침: 유태식 씨앗·로우 설계도 선물이 친밀도가 오르내릴 때 다시 뜨던 것"]}, {"v": "2026.11.02-3", "notes": ["거래: 친구 명함·월드챗 신분증·길드원에게 '거래' → 교환창에서 물건·캡을 올리고 둘 다 확인하면 교환", "교환창: 올린 칸 누르면 1개 내림 · 바꾸면 둘 다 확인 풀림"]}, {"v": "2026.11.02-2", "notes": ["야시장 상인이 밤마다 벽지 1 · 바닥재 1씩 팜 (한 번 사면 계속 씀)", "벽지·바닥재: 처음엔 기본 몇 개만, 이미 칠해 둔 건 그대로 가짐"]}, {"v": "2026.11.02-1", "notes": ["꾸미기: 칸을 누르면 미리보기 → PC는 더블클릭, 폰은 A 단추로 확정", "전기: 발전기를 돌리면 밤에 쉘터 방마다 불이 켜지고 정신력이 참", "전기 효과 강화: 잠 1시간 덜·정신력 +10, 단련 가끔 ×2, 요리 15% 빠름, 공구대 +15%, 냉장고 30%", "발전기에 말 걸어 기름 붓기 · 발전기 위에 남은 기름 표시"]}, {"v": "2026.11.01-11", "notes": ["친구 요청: 보내면 상대가 수락·거절 (수락하면 서로 명함 받음)", "쉘터 장소 메뉴에 '모닥불을 피운다' (나무 판자 2)", "지도: 모르는 곳도 위험도 표시 (숫자 + 글)"]}, {"v": "2026.11.01-10", "notes": ["폐자재 야적장에서 천 조각도 나옴 (나무 판자·고철·천 조각)", "고침: 교전 화면이 안 뜨거나 가려지던 것", "보급 꾸러미 · 수색 음식 1.6배"]}, {"v": "2026.11.01-9", "notes": ["고침: 교전이 시작될 때 전투 화면·버튼이 가려지거나 안 뜨던 것 (안 뜨면 2초 안에 다시 그림)", "보급 꾸러미: 모두에게 한 번 들개 고기 2 · 나무 판자 2", "수색에서 먹을 것이 더 잘 나옴"]}, {"v": "2026.11.01-8", "notes": ["보급 꾸러미: 모두에게 한 번 들개 고기 2 · 나무 판자 2", "수색에서 먹을 것이 더 잘 나옴 (1.6배)", "이동 시간·기력이 위치로 정해짐 · 장소 안에서 걷는 건 시간이 안 듦"]}, {"v": "2026.11.01-7", "notes": ["고침: 수색 중 사건(쓰러진 생존자 등)이 뜰 때 대사가 '…획득'으로 바뀌어 보이던 것", "이동 시간·기력이 위치로 정해짐: 쉘터 근처 2시간 · 시가지 3시간 · 공장 지대 4시간 · 항구 5시간", "장소 안에서 걷는 건 시간이 안 듦"]}, {"v": "2026.11.01-6", "notes": ["이동 시간이 위치로 정해짐: 쉘터 근처 2시간 · 시가지 3시간 · 공장 지대 4시간 · 항구 5시간 (같은 지역 안은 1시간)", "기력도 위치에 따라: 6 · 10 · 14 · 18", "배고픔은 흐른 시간만큼 (1시간에 1)", "장소 안에서 걷는 건 시간이 안 듦", "아침이면 모든 장소 뒤질 거리가 3번으로 다시 참"]}, {"v": "2026.11.01-5", "notes": ["모든 장소: 아침이 되면 뒤질 거리가 다시 3번으로 꽉 참", "물가·방사능 장소도 3번", "안쪽 방이 있는 장소: 방마다 하루 3번 수색"]}, {"v": "2026.11.01-4", "notes": ["안쪽 방이 있는 장소: 방마다 하루 3번 수색", "월드챗에서 이름을 누르면 신분증 · 친구 추가", "월드챗은 하루 지난 글이 사라짐", "시작할 때 계정 창 · 업데이트 알림", "지도 아이콘 두 번 누르면 바로 이동"]}];   // 지난 업데이트 내역 (최신이 앞) · 공지 창
 // 공지 (업데이트 내역): PC는 왼쪽 아래 '공지', 폰은 위 알림 옆 '공지'. 안 본 업데이트가 있으면 노랗게
 let newsShown = false;
 function newsUnseen() { return storeGet("rpg_newsSeen") !== GAME_VER; }
