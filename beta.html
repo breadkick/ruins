@@ -511,6 +511,10 @@
   .bQte { position: absolute; width: 124px; height: 124px; margin: -62px 0 0 -62px; padding: 0; border: 0; border-radius: 50%; background: radial-gradient(circle, #0000 0 18px, var(--qc) 19px 22px, #0000 23px), radial-gradient(circle, color-mix(in srgb, var(--qc) 14%, transparent) 0 60px, #0000 61px); z-index: 7; cursor: pointer; touch-action: manipulation; animation: qtePop .18s ease-out; }
   @media (max-width: 640px) { .bQte { width: 150px; height: 150px; margin: -75px 0 0 -75px; } }   /* 폰: 누르는 곳을 더 넓게 */
   .bQte small { position: absolute; left: 50%; top: calc(50% + 46px); transform: translateX(-50%); white-space: nowrap; font-size: 12px; padding: 1px 7px; border-radius: 3px; color: #fff; background: #000c; border: 1px solid var(--qc); }
+  .n12led { position: absolute; width: 4px; height: 4px; background: #4a7a4a; outline: 1px solid #111; pointer-events: none; }
+  .n12led.on { background: #8dff9a; box-shadow: 0 0 5px 1px #5dff6aaa; animation: n12blink 1.6s steps(2) infinite; }
+  .n12wire { position: absolute; width: 2px; background: linear-gradient(#2d6a3a, #1e3a24); outline: 1px solid #0006; pointer-events: none; }
+  @keyframes n12blink { 50% { background: #3f8a4a; box-shadow: none; } }
   .bQte.atk { --qc: #ff5a4a; } .bQte.def { --qc: #5aa8ff; }
   .bQte i { position: absolute; left: 50%; top: 50%; width: 74px; height: 74px; margin: -37px 0 0 -37px; border-radius: 50%; border: 3px solid var(--qc); box-shadow: 0 0 10px var(--qc); animation: qteRing var(--ms) linear forwards; }
   .bQte b { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); white-space: nowrap; font-weight: normal; font-size: 13px; color: #fff; text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 0 0 6px var(--qc); }
@@ -1528,12 +1532,13 @@ function patExec(blocked, red) {
   if (P.regen) { done(); if (dealt > 0) { log(`<span class="buff">때려서 ${monName()}의 재생을 막았다.</span>`); patEv("재생 저지", "big"); }
     else { const h = Math.round(monMax() * P.regen); monster.hp = Math.min(monMax(), monster.hp + h); log(`<span class="danger">${monName()}의 상처가 아물었다. HP +${h}</span>`); bq({ t: "mheal", amt: h, monHp: monster.hp }); patEv("", ""); } return false; }
   if (P.noAtk) { done(); if (P.end) log(`${monName()}${jo(monster.name, "이", "가")} ${P.end}`); if (P.chain) patTele(P.chain); else patEv("", ""); return false; }
-  const hits = P.hits || 1; let taken = 0;
-  log(`<span class="danger">${monName()}의 ${P.tag}!</span>`); patEv("", "");
+  const hits = P.hits || 1, cover = S.cover && jhOut(), mul = P.mul * (cover ? JH_COVER : 1); let taken = 0; S.cover = false;
+  log(`<span class="danger">${monName()}의 ${P.tag}!</span>${cover ? ` <span class="buff">${cover.name}${jo(cover.name, "이", "가")} 앞을 막아섰다.</span>` : ""}`); patEv("", "");
   for (let i = 0; i < hits; i++) {
-    if (blocked) { const d = guardDmg(Math.max(1, Math.round(monster.atk * P.mul * (1 - red)))); player.hp -= d; taken += d; bq({ t: "claw", dmg: d, heroHp: player.hp, blocked: true, big: true }); }
-    else if (monStrike(P.tag, P.mul)) return true;
+    if (blocked || cover) { const d = guardDmg(Math.max(1, Math.round(monster.atk * mul * (1 - (blocked ? red : 0))))); player.hp -= d; taken += d; bq({ t: "claw", dmg: d, heroHp: player.hp, blocked: true, big: !cover }); }
+    else if (monStrike(P.tag, mul)) return true;
   }
+  if (cover) { bq({ t: "qres", who: "hero", text: `엄호! 피해 ${Math.round(taken / JH_COVER)} → ${taken}`, cls: "big" }); log(`엄호 덕분에 ${taken}만 입었다.`); if (!blocked && player.hp <= 0) { lose(); return true; } }
   if (blocked) log(`방어로 받아내 ${taken}만 입었다.`);
   if (P.rad) { if (blocked) log("오염된 이빨을 막아 피폭을 피했다."); else { S.prad = PAT_RAD.n; log(`<span class="danger">피폭됐다. 내 차례마다 HP -${PAT_RAD.d} (${PAT_RAD.n}번)</span>`); } }
   if (P.steal) { if (blocked) log("갈고리를 쳐내 주머니를 지켰다."); else if (player.gold > 0) { const c = Math.min(player.gold, 15 + Math.floor(Math.random() * 16)); player.gold -= c; monster.stolen = (monster.stolen || 0) + c; log(`<span class="danger">캡 ${c}개를 빼앗겼다. (쓰러뜨리면 되찾음)</span>`); bq({ t: "steal", c, total: monster.stolen }); } }
@@ -1541,7 +1546,8 @@ function patExec(blocked, red) {
   if (P.rage) { S.r = (S.r || P.rage) - 1; if (S.r > 0) { patEv("", ""); return false; } done(); patOpenSet(P, P.openN); return false; }   // 맹공·폭주 뒤엔 막든 말든 탈진
   done();
   if (P.chain) { patTele(P.chain); return false; }
-  if (blocked) patOpenSet(P, P.openN); else if (P.miss === "half") patHalfSet(P);
+  if (blocked) patOpenSet(P, P.openN); else if (cover && mateTier(cover) >= 2) { const S2 = patSt(); S2.open = 1; S2.omul = P.openMul || PAT_OPEN_MUL; log(`<span class="buff">${cover.name}${jo(cover.name, "이", "가")} 받아친 틈에 적이 휘청거린다. 빈틈!</span>`); patEv("빈틈!", "big"); }
+  else if (P.miss === "half") patHalfSet(P);
   return false;
 }
 // 몬스터 차례 (내가 공격·기술을 쓴 뒤). 쓰러지면 true
@@ -3558,6 +3564,10 @@ function drawScene(id) {
     if (id === world.current && powered() && isNight()) { const q = isoPos(c - 1, c - 1); html += `<div class="lampGlow ceil" style="left:${q.left + 16 - 90}px;top:${q.top - 70}px;z-index:939"></div>`; }
     if (id === world.current) (RM().decor || []).forEach(d => { if (d.n !== "발전기") return; const q = isoPos(d.x, d.y), P = world.power || { fuel: 0, left: 0 };
       html += `<div class="plotTag genTag${powered() ? " on" : P.fuel || P.left > 0 ? "" : " dry"}" style="left:${q.left + 16}px;top:${q.top - 22}px" title="발전기 · ${genStatus()}">${powered() ? "⚡" : "⛽"} ${P.fuel}/${fuelCap()}</div>`; });
+    // N12가 개조한 가구: 작은 초록 표시등 + 벽으로 이어지는 선
+    if (id === world.current) (RM().decor || []).forEach(d => { if (FURNITURE[d.n].fix || !n12ModOf(d.n).length) return; const r = FURN.map[FURNITURE[d.n].art]; if (!r) return;
+      const q = isoPos(d.x, d.y), left = Math.round(q.left + 16 - r[2] / 2), top = q.top + 16 - r[3], z = Math.max(...furnTiles(d).map(([a, b]) => a + b)) * 2 + 2;
+      html += `<div class="n12wire" style="left:${left + (d.f ? 4 : r[2] - 6)}px;top:${top + 6}px;height:${Math.max(8, r[3] - 14)}px;z-index:${z - 1}"></div><div class="n12led${powered() ? " on" : ""}" style="left:${left + (d.f ? 3 : r[2] - 7)}px;top:${top + 4}px;z-index:${z}" title="N12가 연결한 ${n12ModOf(d.n).join(" · ")}"></div>`; });
     // 전기가 들어오면: 밤에 전등 둘레가 따뜻하게 밝고, 텔레비전 화면이 깜빡임
     if (id === world.current && powered()) (RM().decor || []).forEach(d => {
       if (d.n !== "스탠드 전등" && d.n !== "텔레비전") return;
@@ -4565,7 +4575,7 @@ function bagUsed() { return Object.values(player.items || {}).reduce((a, b) => a
 function bagHas(n) { return player.items[n] || 0; }
 function heavy() { return bagUsed() > bagCap(); }
 function bagRoom() { return Math.max(0, bagMax() - bagUsed()); }
-function fleePct() { const p = (heavy() ? 30 : 50) - (job("miner") ? 10 : 0) + (wHas("grip") ? 15 : 0) + (jhOut() ? 20 : 0) + petFlee() + st("agi") * 2; return monAb() === "quick" ? p / 2 : p; }
+function fleePct() { const p = (heavy() ? 30 : 50) - (job("miner") ? 10 : 0) + (wHas("grip") ? 15 : 0) + jhFleeAdd() + petFlee() + st("agi") * 2; return monAb() === "quick" ? p / 2 : p; }
 // 수납 가구: [칸, 음식·재료만]. 낡은 건 절반
 const STASH = { boxes: [20], crate: [30], cupboard: [25], wardrobe: [25], bookcase: [15], safe: [40], glasscab: [20], fridge: [30, true], fridge2: [40, true], pantry: [30, true], icebox: [20, true], toybox: [15] };
 function stashInfo(d) { const s = d && STASH[furnBase(d.n)]; if (!s) return null; return { cap: (FURNITURE[d.n].fix ? Math.floor(s[0] / 2) : s[0]) + (d.up || 0) * STASH_UP, food: !!s[1] }; }
@@ -5173,10 +5183,10 @@ const MATE_SP = {
   "싸움": "같이 싸우면 공격 +2, HP +10",
   "손재주": "쉘터에서 같이 자고 나면 내 무기 내구 +4",
   "정비": "하루 한 번 무기 수리(내구 가득) · 쉘터에서 무기 개조 · 친해지면 설계도를 그려 줌",
-  "전기공": "손재주 특기에 더해, 쉘터에 있으면 발전기 기름이 이틀에 한 통 · 전기 가구 고칠 때 재료 절반 · 친해지면 아침마다 배터리 1개 · 친밀도 70이면 전동 공구대 +20%",
-  "연구원": "쉘터에 있으면 사흘마다 축전지 셀 1개 (친밀도 70이면 이틀마다) · 친해지면 무기에 박는 탑 재료 한도 +5%p · 연구소 출신이라 N12와 같이 있으면 처음부터 친함",
-  "경계병": "싸움 특기에 더해, 쉘터에 있으면 밤 습격 절반 · 습격이 와도 절반은 먼저 막아 줌 · 데리고 나가면 기습 -40% · 도주 +20% · 친해지면 사흘마다 탄약 3발",
-  "농사꾼": "농사 특기에 더해, 밭 당번이면 물을 안 줘도 되고 25% 빨리 자람 · 닭도 같이 챙김 · 거둘 때 가끔 풍작(두 배) · 친해지면 씨앗을 나눠 줌",
+  "전기공": "쉘터를 개조하는 전기공: 전기 가구 고칠 때 재료 절반 · 친해지면 전동 공구대에 안전 회로(강화 실패 때 재료 절반 돌려받음) · 친밀도 70이면 시설마다 개조 방향(공구대 정밀 조정/충격 완화 · 발전기 절전/방음) · 쉘터에 있으면 기름 한 통이 이틀 · 친해지면 아침마다 배터리 1개 · 손재주 특기도",
+  "연구원": "탑 재료 연구: 박기 전 분석 · 친해지면 박힌 재료를 빼거나 다른 무기로 옮김(회수 연구)·탑 재료 한도 +5%p · 친밀도 70이면 남는 재료를 재배합 · N12와 둘 다 친하면 공동 연구 (사흘에 한 번 탑 재료) · 쉘터에 있으면 사흘마다 축전지 셀 1개 (70이면 이틀)",
+  "경계병": "싸움 특기에 더해 · 엄호 요청: 데리고 나가면 하루 한 번 예고된 강공격 피해 -75% (친밀도 70이면 엄호 뒤 빈틈) · 친해지면 나갈 때 임무를 고름: 정찰(기습 -50%) / 호위(도주 +30%, 도주 실패 한 번 막음) · 쉘터에 있으면 밤 습격 절반, 막으면 아침에 보고 · 친해지면 사흘마다 탄약 3발",
+  "농사꾼": "농장 운영을 맡기는 동료: 재배 계획(밭마다 심을 것·횟수 예약, 빈 밭도 심음) · 친해지면 요리를 고르면 모자란 작물을 계획에 넣음 · 농사 특기에 더해 밭 당번이면 물을 안 줘도 되고 25% 빨리 자람 · 축사도 챙김 · 가끔 풍작 · 친해지면 씨앗을 나눠 줌",
 };
 function spFight(m) { return m.sp === "싸움" || m.sp === "경계병"; } function spHandy(m) { return m.sp === "손재주" || m.sp === "전기공"; }
 function fixedHome(k) { const m = mates().find(x => x.fixed === k); return m && mateHome(m) && !m.hurt && m.hp > 0 ? m : null; }   // 쉘터에 있는 고정 동료
@@ -5364,6 +5374,24 @@ function n12Join() {
 // world.jh = { met, healed, joined }
 const JH_AT = "bunker", JH_TILES = [[5, 4], [5, 3], [4, 4], [5, 5], [3, 4], [4, 5], [2, 4]], JH_AID = ["약초 붕대", "의약품"];
 function JH() { return world.jh || (world.jh = {}); }
+// =============== 이진혁: 위험한 순간에 믿고 부르는 경계병 ===============
+// 엄호 요청: 데리고 나갔을 때 하루 한 번 · 예고된 강공격 피해 -75% (친밀도 70이면 엄호 뒤 짧은 빈틈) · 공짜 행동 (차례를 쓰지 않음)
+// 임무 (친밀도 30부터, 데리고 나갈 때 고름): 정찰 = 기습 -50% · 호위 = 도주 +30% · 도주에 실패해도 교전마다 한 번은 진혁이 막아 줌. 그 전엔 둘 다 절반(기습 -20% · 도주 +10%)
+const JH_COVER = 0.25;
+function jhMission(m = jhOut()) { return m && mateTier(m) >= 1 ? (m.mission || "scout") : null; }
+function jhAmbushMul() { const m = jhOut(); if (!m) return 1; const k = jhMission(m); return k === "scout" ? 0.5 : k === "escort" ? 1 : 0.8; }
+function jhFleeAdd() { const m = jhOut(); if (!m) return 0; const k = jhMission(m); return k === "escort" ? 30 : k === "scout" ? 0 : 10; }
+function jhMissionTxt(k) { return k === "escort" ? "호위 (도주 +30% · 도주 실패도 한 번 막아 줌)" : "정찰 (기습 -50%)"; }
+function jhMissionAsk(m, then) {
+  say([[mateWho(m, "base"), "이번엔 뭘 맡을까. 앞을 볼까, 네 등을 볼까."]], [["정찰을 맡긴다", () => { m.mission = "scout"; log(`${m.name}: 정찰을 맡았다. (기습 -50%)`); if (then) then(); render(); }, "기습을 미리 막음 · 기습 -50%"],
+    ["호위를 맡긴다", () => { m.mission = "escort"; log(`${m.name}: 호위를 맡았다. (도주 +30%)`); if (then) then(); render(); }, "위기에서 빠져나가기 · 도주 +30% · 도주 실패 한 번 막음"]]);
+}
+function jhCoverOk() { const m = jhOut(), P = monster && patIntent(); return !!(m && m.hp > 0 && B.open && P && P.mul && !P.noAtk && !monster.pat.cover && (world.daily || {})["jhcover"] !== dayNo()); }
+function jhCover() {
+  if (!jhCoverOk() || bBusy()) return; const m = jhOut(); (world.daily || (world.daily = {}))["jhcover"] = dayNo(); monster.pat.cover = true; sfx("guard");
+  log(`<span class="buff">${m.name}${jo(m.name, "을", "를")} 불렀다. "엄호한다. 내 뒤로 붙어."</span> <span class="k">(다음 ${patIntent().tag} 피해 -${Math.round((1 - JH_COVER) * 100)}%)</span>`);
+  bq({ t: "qres", who: "hero", text: `${m.name} 엄호!`, cls: "big" }); render();
+}
 function jhWaiting() { return !JH().joined && !mates().some(m => m.fixed === "jh") && !fixedAway("jh"); }
 function jhWho(ex) { return { name: JH().healed ? "이진혁" : "???", face: { port: "jh", ex } }; }
 function jhAid() { return JH_AID.find(n => itemCount(n) > 0) || null; }
@@ -5811,9 +5839,13 @@ function mateTalk(id) {
   if (atBase()) {
     ch.push(["일을 맡긴다", () => mateJobMenu(m), `지금: ${mateJobTxt(m)}`]);
     if (m.fixed === "ts" && tsSeeds().length) { const R = TS(), left = R.seedDay == null ? 0 : 3 - (dayNo() - R.seedDay); ch.push(["씨앗을 나눠 달라고 한다", () => tsSeedAsk(m), left > 0 ? `${left}일 뒤에 또` : `사흘에 한 번 · ${tsSeeds().join("·")}`]); }
+    if (m.fixed === "n12" && !m.hurt) ch.push(["시설을 손봐 달라고 한다", () => n12Shop(m), mateTier(m) >= 2 ? "안전 회로 · 시설 개조 방향" : mateTier(m) >= 1 ? "안전 회로" : "전기 가구 수리 할인 (친해지면 시설 개조)"]);
+    if (m.fixed === "ts" && !m.hurt) ch.push(["재배 계획을 짠다", () => tsPlanMenu(m), `밭마다 심을 것·횟수${mateTier(m) >= 1 ? " · 요리로 계획" : ""}${m.job === "farm" ? "" : " · 밭 당번일 때 심음"}`]);
+    if (m.fixed === "yj" && !m.hurt) ch.push(["탑 재료를 연구해 달라고 한다", () => yjLab(m), `분석${mateTier(m) >= 1 ? " · 회수·옮기기" : ""}${mateTier(m) >= 2 ? " · 재배합" : ""}${n12Home() ? " · N12와 공동 연구" : ""}`]);
     if (m.sp === "정비" && !m.hurt) ch.push(["무기를 맡긴다", () => mechModMenu(m), player.weapon.name === "맨손" ? "손에 든 무기 없음" : `${player.weapon.name} · 개조 ${wMods().length}/${wModSlots()}칸`]);
     ch.push(mateOut() === m ? ["쉘터에 둔다", () => mateStay(m)] : ["데리고 나간다", () => mateTake(m), m.hurt ? "다쳐서 못 감" : `공격 ${mateAtk(m)} · HP ${m.hp}/${mx}${mateOut() ? ` · ${mateOut().name} 대신` : ""}`]);
   }
+  if (m.fixed === "jh" && mateTier(m) >= 1 && mateOut() === m) ch.push(["임무를 바꾼다", () => jhMissionAsk(m), `지금: ${jhMissionTxt(jhMission(m))}`]);
   if ((m.sp === "정비" || m.fixed === "mech") && !m.hurt && player.weapon.name !== "맨손") ch.push(["무기 내구를 채워 달라고 한다", () => mechRepair(m), chkDone("mrepair") ? "오늘은 했음 · 내일 또" : wDur() >= wMax() ? `내구 ${wDur()}/${wMax()} · 멀쩡함` : `하루 한 번 · 내구 ${wDur()}/${wMax()} → 가득`, "mrepair"]);
   if (mateCanArm(m)) { const w = mateWpn(m); ch.push(["무기를 쥐어 준다", () => mateArmMenu(m), w ? `지금: ${w.name} ${w.dur}/${mateWpnMax(m)}${w.dur <= 0 ? " (부러짐)" : ""}` : armable().length ? `가방 무기 ${armable().length}종` : "가방에 줄 무기 없음"]); }
   if (m.starve || m.ate !== dayNo()) ch.push(["먹을 걸 준다", () => mateFeedMenu(m), m.starve ? `굶은 지 ${m.starve}일${mateFoods().length ? "" : " · 줄 게 없다"}` : mateFoods().length ? "오늘 아침을 아직 못 먹음" : "줄 게 없다"]);
@@ -6222,6 +6254,7 @@ function mateTake(m) {
   if (!atBase() || !m || m.away) return;
   if (m.hurt) { log(`${m.name}${jo(m.name, "은", "는")} 다쳐서 쉬어야 한다.`); render(); return; }
   const o = mateOut(); player.mateOut = m.id; m.job = "rest"; m.scoutAuto = null; mateFollow = null;
+  if (m.fixed === "jh" && mateTier(m) >= 1) jhMissionAsk(m); else
   say([[mateWho(m), mateSay(m, "go")]]);
   log(`${m.name}${jo(m.name, "을", "를")} 데리고 다니기로 했다.${o && o !== m ? ` ${o.name}${jo(o.name, "은", "는")} 쉘터에 남는다.` : ""}`); render();
 }
@@ -6330,18 +6363,59 @@ function mateCook(m) {
   }
   return made;
 }
+// =============== 유태식: 재배 계획 ===============
+// 밭마다 심을 씨앗과 횟수를 예약 (world.base.plan[밭] = { seed, n }, n = 남은 횟수 · -1 = 계속). 태식이 밭 당번이면 아침에 거두고 계획대로 심음 (빈 밭도)
+// 친밀도 30: 요리를 고르면 모자란 작물을 보여 주고, 빈 계획 칸에 넣어 줌. 씨앗은 수납·가방에서 (없으면 비워 두고 알려 줌)
+function farmPlan() { return world.base.plan || (world.base.plan = {}); }
+function planTxt(i) { const P = farmPlan()[i]; return P ? `${crops[P.seed] ? crops[P.seed].crop : P.seed} ${P.n < 0 ? "계속" : `${P.n}번`}` : "계획 없음"; }
+function seedHave(seed) { return stashCount(seed) + bagHas(seed); }
+function seedUse(seed) { if (stashCount(seed) > 0) stashUse(seed, 1); else removeItem(seed, 1); }
+function planNext(i) { const P = farmPlan()[i]; if (!P) return null; if (P.n === 0) { delete farmPlan()[i]; return null; } return P.seed; }
+function planDone(i) { const P = farmPlan()[i]; if (P && P.n > 0) { P.n--; if (!P.n) delete farmPlan()[i]; } }
+function tsPlanMenu(m) {
+  if (!m || monster || !atBase()) return; if (!hasFacility("farm")) { say([[mateWho(m, "base"), "밭부터 만들어. 계획은 그다음이야."]]); return; }
+  const F = world.base.farm, who = mateWho(m, "base");
+  say([[who, mateTier(m) >= 1 ? "어디에 뭘 심을지 말해. 나머진 내가 알아서 해." : "밭마다 뭘 몇 번 심을지 정해 둬. 씨앗만 있으면 내가 심는다."],
+       [null, { text: F.map((pl, i) => `밭 ${i + 1}: ${pl ? `${crops[pl.seed].crop} ${pl.ready ? "다 자람" : "자라는 중"}` : "빈 밭"} · ${planTxt(i)}`).join(" / "), cls: "k" }]],
+      [...F.map((pl, i) => [`밭 ${i + 1} 계획`, () => tsPlanPlot(m, i), planTxt(i)]), ...(mateTier(m) >= 1 ? [["요리를 정해 계획에 넣는다", () => tsCookMenu(m), "모자란 작물을 빈 계획 칸에"]] : [lockCh("요리로 계획 짜기", null, "친밀도 30이 되면: 만들고 싶은 요리를 고르면 모자란 작물을 계획에 넣어 줌", true, () => tsPlanMenu(m))]), ["그만둔다"]]);
+}
+function tsPlanPlot(m, i) {
+  const seeds = Object.keys(crops).filter(sd => seedHave(sd) > 0 || (farmPlan()[i] && farmPlan()[i].seed === sd));
+  say([[mateWho(m, "base"), `밭 ${i + 1}엔 뭘 심을까.`]], [...seeds.map(sd => [`${crops[sd].crop}`, () => tsPlanCount(m, i, sd), `${sd} ${seedHave(sd)}개`]), ...(farmPlan()[i] ? [["계획을 지운다", () => { delete farmPlan()[i]; tsPlanMenu(m); }]] : []), ["돌아간다", () => tsPlanMenu(m)]]);
+}
+function tsPlanCount(m, i, sd) {
+  say([[mateWho(m, "base"), `${crops[sd].crop}. 몇 번?`]], [[1, 3, 5].map(n => [`${n}번`, () => { farmPlan()[i] = { seed: sd, n }; log(`밭 ${i + 1} 재배 계획: ${crops[sd].crop} ${n}번`); tsPlanMenu(m); }]), [["계속", () => { farmPlan()[i] = { seed: sd, n: -1 }; log(`밭 ${i + 1} 재배 계획: ${crops[sd].crop} 계속`); tsPlanMenu(m); }]], [["돌아간다", () => tsPlanPlot(m, i)]]].flat());
+}
+const CROP_OF = {}; for (const sd in crops) CROP_OF[crops[sd].crop] = sd;
+function tsCookMenu(m) {
+  const L = RECIPES.filter(r => Object.keys(r.need).some(n => CROP_OF[n])).slice(0, 40), have = n => stashCount(n) + bagHas(n);
+  const short = r => Object.entries(r.need).filter(([n, k]) => CROP_OF[n] && have(n) < k).map(([n, k]) => [n, k - have(n)]);
+  const want = L.filter(r => short(r).length).slice(0, 8);
+  say([[mateWho(m, "base"), "뭐 해 먹고 싶은데. 모자란 건 내가 길러 줄게."]], [...want.map(r => [r.n, () => tsCookPlan(m, r), `모자란 것: ${short(r).map(([n, k]) => `${n} ${k}`).join(", ")}`]), ["돌아간다", () => tsPlanMenu(m)]]);
+}
+function tsCookPlan(m, r) {
+  const have = n => stashCount(n) + bagHas(n), F = world.base.farm, P = farmPlan(), add = [], noSeed = [];
+  for (const [n, k] of Object.entries(r.need)) { const sd = CROP_OF[n]; if (!sd || have(n) >= k) continue; const need = k - have(n), times = Math.max(1, Math.ceil(need / 3));
+    const slot = F.findIndex((pl, i) => !P[i]); if (slot < 0) { noSeed.push(`${n}(빈 계획 칸 없음)`); continue; } if (!seedHave(sd)) noSeed.push(`${n}(${sd} 없음)`);
+    P[slot] = { seed: sd, n: times }; add.push(`밭 ${slot + 1}: ${n} ${times}번`); }
+  log(`<span class="buff">${r.n}${jo(r.n, "을", "를")} 위한 재배 계획: ${add.join(" · ") || "넣을 칸이 없다"}</span>${noSeed.length ? ` <span class="warn">(${noSeed.join(", ")})</span>` : ""}`);
+  say([[mateWho(m, "laugh"), add.length ? `${r.n}? 좋지. ${add.join(", ")}. {p}다 자라면 수납에 넣어 둘게.` : "밭이 꽉 찼어. 계획 하나 지우고 다시 말해."], ...(noSeed.length ? [[null, { text: `씨앗이 모자라다: ${noSeed.join(", ")}`, cls: "warn" }]] : [])], [["계획 보기", () => tsPlanMenu(m)], ["그만둔다"]]);
+}
 function mateFarm(m) {
-  const got = {}; let w = 0, re = 0, bump = 0;
+  const got = {}; let w = 0, re = 0, bump = 0, planted = [], missing = []; const ts = m.fixed === "ts";
   world.base.farm.forEach((pl, i) => {
     if (pl && pl.ready) {
       const c = crops[pl.seed].crop, seed = pl.seed; let a = 2 + (farmSp(m) ? 1 : 0); if (Math.random() < tsBumper()) { a *= 2; bump++; }
       stashAuto(c, a); got[c] = (got[c] || 0) + a; world.base.farm[i] = null;
       if (Math.random() < SEED_BACK + (farmSp(m) ? 0.1 : 0)) { stashAuto(seed, 1); got[seed] = (got[seed] || 0) + 1; }   // 동료가 거둬도 가끔 씨앗
-      if (farmSp(m) && stashCount(seed) > 0) { stashUse(seed, 1); world.base.farm[i] = { seed, at: turn, g: 0, ready: false }; re++; }
-    }
+      const want = ts ? planNext(i) : null;
+      if (want) { if (seedHave(want) > 0) { seedUse(want); world.base.farm[i] = { seed: want, at: turn, g: 0, ready: false }; planDone(i); re++; planted.push(crops[want].crop); } else missing.push(want); }
+      else if (farmSp(m) && stashCount(seed) > 0) { stashUse(seed, 1); world.base.farm[i] = { seed, at: turn, g: 0, ready: false }; re++; }
+    } else if (!pl && ts) { const want = planNext(i); if (want) { if (seedHave(want) > 0) { seedUse(want); world.base.farm[i] = { seed: want, at: turn, g: 0, ready: false }; planDone(i); re++; planted.push(crops[want].crop); } else missing.push(want); } }
     const q = world.base.farm[i]; if (q && !q.ready && !isWet(q)) { q.wet = dayNo(); q.wetEver = true; w++; }
   });
-  return { got, w, re, bump };
+  if (missing.length) note("mjob", `${m.name}: 재배 계획의 씨앗이 없다 (${[...new Set(missing)].join(", ")})`, m.id + ":plan");
+  return { got, w, re, bump, planted, missing };
 }
 function mateCoop() {
   const C = world.base.coop; if (!C || (!C.hens && !C.cows)) return null;
@@ -6395,9 +6469,15 @@ function mateMorning() {
   }
   for (const m of L) {
     if (!mateHome(m) || m.hurt) continue;
-    if (m.job === "farm" && hasFacility("farm")) { const r = mateFarm(m), g = Object.entries(r.got).map(([c, k]) => `${c} ${k}개`).join(", ");
-      if (r.w || g) out.push(`${nm(m)} ${r.w ? `텃밭 ${r.w}칸에 물을 줬다` : "텃밭을 둘러봤다"}${g ? `. 거둔 것: ${g} → 수납${r.re ? ` · ${r.re}칸 다시 심음` : ""}${r.bump ? ` · 풍작 ${r.bump}칸` : ""}` : ""}.`);
-      if (m.fixed === "ts" && hasFacility("coop") && (coop().hens || coop().cows)) { const q = mateCoop(); if (q) out.push(`${nm(m)} 내친김에 축사도 챙겼다. ${mateCoopTxt(q)}`); } }
+    if (m.job === "farm" && hasFacility("farm")) { const r = mateFarm(m), g = Object.entries(r.got).map(([c, k]) => `${c} ${k}개`).join("·");
+      if (m.fixed === "ts") {   // 태식: 한 일을 한 줄로 (거둠 · 심음 · 축사)
+        const q = hasFacility("coop") && (coop().hens || coop().cows) ? mateCoop() : null, C = coop(), care = q ? [C.hens ? "닭" : "", C.cows ? "젖소" : ""].filter(Boolean).join("과 ") : "";
+        const pl = [...new Set(r.planted)].join("·"), parts = [g ? [`${g}${jo(g, "을", "를")} 거두고`, `${g}${jo(g, "을", "를")} 거뒀다`] : r.w ? [`밭 ${r.w}칸에 물을 주고`, `밭 ${r.w}칸에 물을 줬다`] : ["밭을 둘러보고", "밭을 둘러봤다"],
+          pl ? [`${pl}${jo(pl, "을", "를")} 계획대로 심고`, `${pl}${jo(pl, "을", "를")} 계획대로 심었다`] : r.re ? [`${r.re}칸을 다시 심고`, `${r.re}칸을 다시 심었다`] : null, care ? [`${care}${jo(care, "을", "를")} 돌보고`, `${care}${jo(care, "을", "를")} 돌봤다`] : null].filter(Boolean);
+        const did = parts.map((p, k) => p[k === parts.length - 1 ? 1 : 0]).join(", ");
+        out.push(`<span class="buff">${nm(m)} ${did}.${r.bump ? ` 풍작 ${r.bump}칸!` : ""}</span>${q ? ` <span class="k">(${mateCoopTxt(q)})</span>` : ""} 덕분에 탐험에 집중할 수 있었다.`);
+        if (r.missing.length) out.push(`<span class="warn">${m.name}: "계획에 넣은 ${[...new Set(r.missing)].map(sd => crops[sd].crop).join("·")} 씨앗이 없더라. 구해 와."</span>`);
+      } else if (r.w || g) out.push(`${nm(m)} ${r.w ? `텃밭 ${r.w}칸에 물을 줬다` : "텃밭을 둘러봤다"}${g ? `. 거둔 것: ${g} → 수납${r.re ? ` · ${r.re}칸 다시 심음` : ""}${r.bump ? ` · 풍작 ${r.bump}칸` : ""}` : ""}.`); }
     if (m.job === "coop") { const r = mateCoop(); if (r && (!r.fed || !r.cfed)) note("mjob", `${m.name}: 수납에 ${!r.fed ? "곡식" : "여물"}${jo(!r.fed ? "곡식" : "여물", "이", "가")} 모자라 ${!r.fed ? "모이" : "여물"}${jo(!r.fed ? "모이" : "여물", "을", "를")} 못 줬다.`, m.id + ":coop"); if (r) out.push(`${nm(m)} ${mateCoopTxt(r)}`); }
     if (spHandy(m) && atBase() && player.weapon.name !== "맨손" && wDur(player.weapon) < wMax()) { player.weapon.dur = Math.min(wMax(), wDur(player.weapon) + 4); out.push(`${nm(m)} 밤새 ${player.weapon.name}${jo(player.weapon.name, "을", "를")} 손봐 뒀다. (내구 ${player.weapon.dur}/${wMax()})`); }
   }
@@ -6781,7 +6861,7 @@ function arrive(id) {
   if (relPair(id)) return;
   if (id === "shelter" && from !== "yard" && isNight() && (flags().knockDay ?? -9) + 4 <= dayNo() && Math.random() < 0.2) { knock(); return; }
   if (dlg || ASK) return;   // 처음 온 곳 설명 같은 대사창이 떠 있으면 전투는 안 붙임 (대사창이 전투 위에 겹쳐 뜨던 것)
-  if (Math.random() < p.danger * 0.1 * (isNight() ? 1.7 : 1) * noiseMul(id) * originEnc(id) * (itemCount("군용 쌍안경") ? 0.7 : 1) * Math.max(0.4, 1 - st("sense") * 0.03) * petAmbushMul() * (jhOut() ? 0.6 : 1)) startBattle(id);
+  if (Math.random() < p.danger * 0.1 * (isNight() ? 1.7 : 1) * noiseMul(id) * originEnc(id) * (itemCount("군용 쌍안경") ? 0.7 : 1) * Math.max(0.4, 1 - st("sense") * 0.03) * petAmbushMul() * jhAmbushMul()) startBattle(id);
 }
 const REGION_REC = { shelter: 0, city: 10, factory: 18, harbor: 26, lab: 34 };   // 지역 권장 공격력
 // 가는 길에 지금 힘으로 버거운 지역들 (오늘 이미 "그래도 간다"고 한 곳은 빼고). 가장 센 곳을 띄우고, 가면 길에 있는 곳 모두 오늘은 다시 안 물음
@@ -7568,6 +7648,7 @@ function bActs() {
     const L = [...(player.potion > 0 ? [["붕대", "healPickUse('')", `HP +${bandHeal()} · ${player.potion}개`]] : []), ...healItems().map(n => [n, `healPickUse('${n}')`, `HP +${EAT_FX[n].heal}${EAT_FX[n].food ? ` · 포만 +${EAT_FX[n].food}` : ""} · ${itemCount(n)}개`])];
     a.innerHTML = (L.length ? L : [["치료할 게 없다", "", "", "", true]]).map(([l, f, n, c, off]) => `<button class="${c || ""}" onclick="if (!bBusy()) { ${f} }" ${off ? "disabled" : ""}>${l}<small>${n}</small></button>`).join("") + `<button onclick="B.healPick = false; bActs()">취소<small>돌아가기</small></button>`; return; }
   if (B.auto) { a.innerHTML = `<button class="fight autoOn" onclick="autoToggle()">멈춤<small>자동 전투 중 · HP ${Math.round(AUTO_STOP * 100)}%에서 멈춤</small></button>`; bBusyMark(); return; }
+  if (jhCoverOk()) acts.splice(3, 0, ["엄호 요청", "jhCover()", `${jhOut().name} · 하루 한 번 · ${patIntent().tag} -${Math.round((1 - JH_COVER) * 100)}%`, "skill"]);
   if (!monster.graid && !monster.denId && !monster.vault && !monster.tsCrow) acts.push(["자동", "autoToggle()", autoOk() ? `빨리 감기 · HP ${Math.round(AUTO_STOP * 100)}%에서 멈춤` : "잡아 본 몬스터만", "", !autoOk()]);
   a.innerHTML = acts.map(([l, f, n, c, off]) => `<button class="${c || ""}" onclick="if (!bBusy()) { ${f} }" ${off ? "disabled" : ""} title="${l === S.name ? S.fx : ""}">${l}<small>${n}</small></button>`).join(""); bBusyMark();
 }
@@ -8037,7 +8118,8 @@ function radioOn() {
   tick(); render();
 }
 function furnTalk(d) {
-  const b = furnBase(d.n), clean = !FURNITURE[d.n].fix, ch = [];
+  const b = furnBase(d.n), clean = !FURNITURE[d.n].fix, ch = [], n12m = clean ? n12ModOf(d.n) : [];
+  if (n12m.length) setTimeout(() => say([[null, { text: `옆면에 N12가 연결한 ${n12m.join(" · ")}. 작은 초록 표시등이 깜빡이고, 가는 선이 벽을 따라 이어져 있다.`, cls: "buff" }]]), 0);
   const kills = Object.entries(player.kills || {}).map(([n, k]) => `${n} ${k}`).join(", ");
   const line = {
     mirror: clean ? "거울 속 얼굴이 낯설다. 머리라도 다듬어 볼까." : "금이 갔지만 얼굴은 비친다.",
@@ -8192,9 +8274,47 @@ function noiseMul(id) { return noisy() && places[id].region === "shelter" ? 1.5 
 function fixedMorning() {   // 아침: N12 배터리 (친함부터) · 진혁 탄약 (친함부터 사흘마다) · 영재 축전지 셀
   yjCellMorning();
   const n = n12Home(); if (n && mateTier(n) >= 1) { addItem("배터리", 1); log(`${n.name}${jo(n.name, "이", "가")} 밤새 배터리 하나를 충전해 뒀다. 배터리 +1`); }
+  { const j0 = jhHome(), J0 = JH(); if (j0 && J0.report) { const n = J0.report; J0.report = 0;
+    log(`<span class="buff">문 앞 바리케이드에 새 긁힌 자국과 핏자국이 남아 있다.</span> ${j0.name}: "${n > 1 ? `밤새 ${n}번 왔다. 다 돌려보냈어.` : pick(["밤에 한 무리 왔다. 쫓아냈어. 철조망 다시 묶어 놨다.", "새벽에 문 두드리는 놈들이 있었다. 이제 안 와.", "밤에 좀 시끄러웠지. 처리했다. 더 자."])}"`);
+    note("jhguard", `${j0.name}${jo(j0.name, "이", "가")} 밤사이 쉘터를 지켰다. (습격 ${n}번 막음)`); } }
   const j = jhHome(); if (j && mateTier(j) >= 1) { const J = JH(); if (J.ammoDay == null || dayNo() - J.ammoDay >= 3) { J.ammoDay = dayNo(); addItem("탄약", 3); log(`${j.name}${jo(j.name, "이", "가")} 말없이 탄약 3발을 건넸다. 탄약 +3`); } }
 }
-function fuelLen() { return n12Home() ? DAY_LEN * 2 : DAY_LEN; }   // N12가 쉘터에 있으면 기름 한 통이 이틀
+function fuelLen() { return (n12Home() ? DAY_LEN * 2 : DAY_LEN) * (n12Mod().gen === "eff" ? 1.5 : 1); }   // N12: 기름 한 통이 이틀 · 절전 개조면 1.5배
+// =============== N12: 쉘터를 개조하는 전기공 ===============
+// 처음 = 전기 가구 고칠 때 재료 절반 · 친밀도 30 = 전동 공구대에 '안전 회로' (강화 실패 때 재료 절반을 돌려받음)
+// 친밀도 70 = 시설마다 개조 방향 (공구대: 정밀 조정 성공률 +5%p / 충격 완화 실패 하락 50%→20% · 발전기: 절전 기름 1.5배 / 방음 밤 습격 절반). 재료를 내고 바꿀 수 있음
+// 개조한 가구엔 작은 표시등과 선이 붙고, 살펴보면 'N12가 연결한 …'이 보임 (world.base.n12 = { safe, tool, gen })
+const N12_SAFE_COST = { "배터리": 1, "고철": 2 }, N12_MOD_COST = { "회로 기판": 1, "배터리": 1 };
+const N12_DIRS = { tool: { furn: "전동 공구대", opts: { rate: ["정밀 조정", "강화 성공률 +5%p"], soft: ["충격 완화", "일반 강화가 실패해도 강화가 떨어질 확률 50% → 20%"] } },
+                   gen:  { furn: "발전기",     opts: { eff: ["절전 회로", "기름 한 통이 1.5배 오래 감"], quiet: ["방음 덮개", "밤에 발전기 소리로 오는 습격 절반"] } } };
+function n12Mod() { return (world.base && world.base.n12) || {}; }
+function n12ModOf(name) { const M = n12Mod(), L = []; if (name === "전동 공구대") { if (M.safe) L.push("안전 회로"); if (M.tool) L.push(N12_DIRS.tool.opts[M.tool][0]); } if (name === "발전기" && M.gen) L.push(N12_DIRS.gen.opts[M.gen][0]); return L; }
+function n12Shop(m) {
+  if (!m || monster || !atBase()) return; const t = mateTier(m), M = world.base.n12 || (world.base.n12 = {}), who = mateWho(m, "base"), ch = [], hasTool = cleanIn("전동 공구대"), hasGen = cleanIn("발전기");
+  const lines = [[who, t >= 1 ? "어디 손볼까요? 집이 좋아지는 거, 저 그거 되게 좋아해요." : "전기 가구 고칠 땐 불러 주세요. 재료 반은 아껴 드릴게요."]];
+  lines.push([null, { text: `지금: 공구대 ${hasTool ? [M.safe ? "안전 회로" : "", M.tool ? N12_DIRS.tool.opts[M.tool][0] : ""].filter(Boolean).join(" · ") || "손대지 않음" : "없음 (깨끗한 전동 공구대가 있어야 함)"} / 발전기 ${hasGen ? M.gen ? N12_DIRS.gen.opts[M.gen][0] : "손대지 않음" : "없음"}`, cls: "k" }]);
+  const back = () => n12Shop(m);
+  if (t < 1) ch.push(lockCh("전동 공구대에 안전 회로를 단다", null, "친밀도 30이 되면: 강화가 실패해도 재료 절반을 돌려받음", true, back));
+  else if (!M.safe) ch.push(lockCh("전동 공구대에 안전 회로를 단다", () => n12Safe(m), !hasTool ? "깨끗한 전동 공구대가 있어야 한다" : `${labCost(N12_SAFE_COST)} · 강화 실패 때 재료 절반을 돌려받음${labCan(N12_SAFE_COST) ? "" : " (모자람)"}`, !hasTool || !labCan(N12_SAFE_COST), back));
+  for (const [k, D] of Object.entries(N12_DIRS)) { const has = cleanIn(D.furn);
+    if (t < 2) { ch.push(lockCh(`${D.furn} 개조 방향을 정한다`, null, "친밀도 70이 되면: " + Object.values(D.opts).map(o => `${o[0]}(${o[1]})`).join(" / "), true, back)); continue; }
+    ch.push(lockCh(`${D.furn} 개조 방향을 ${M[k] ? "바꾼다" : "정한다"}`, () => n12DirMenu(m, k), !has ? `깨끗한 ${D.furn}${jo(D.furn, "이", "가")} 있어야 한다` : `${M[k] ? `지금 ${D.opts[M[k]][0]} · ` : ""}${labCost(N12_MOD_COST)}`, !has, back)); }
+  say(lines, [...ch, ["그만둔다"]]);
+}
+function n12Safe(m) {
+  const M = world.base.n12 || (world.base.n12 = {}); if (M.safe || !cleanIn("전동 공구대") || !labCan(N12_SAFE_COST)) return; labPay(N12_SAFE_COST); M.safe = true; tick(); sfx("craft"); mateAff(m, 2);
+  say([[null, "N12가 공구대 밑으로 기어 들어가 한참 달그락거린다. 기판 하나를 끼우자 옆면에 작은 초록 불이 켜진다."], [mateWho(m, "laugh"), "됐어요. 이제 강화하다 튀어도 재료 반은 이 녀석이 붙잡아 줄 거예요. {p}…불 켜진 거 귀엽죠?"]], [["돌아간다", () => n12Shop(m)]]);
+  log(`<span class="buff">N12가 전동 공구대에 안전 회로를 연결했다. (강화 실패 때 재료 절반을 돌려받음)</span>`); render();
+}
+function n12DirMenu(m, k) {
+  const D = N12_DIRS[k], M = world.base.n12 || (world.base.n12 = {});
+  say([[mateWho(m, "base"), `${D.furn}${jo(D.furn, "은", "는")} 두 가지로 갈 수 있어요. 하나만요. …둘 다 하면 터져요.`]], [...Object.entries(D.opts).map(([o, [nm, fx]]) => lockCh(`${nm}${M[k] === o ? " (지금)" : ""}`, () => n12Dir(m, k, o), `${fx} · ${labCost(N12_MOD_COST)}${labCan(N12_MOD_COST) ? "" : " (모자람)"}`, M[k] === o || !labCan(N12_MOD_COST), () => n12DirMenu(m, k))), ["돌아간다", () => n12Shop(m)]]);
+}
+function n12Dir(m, k, o) {
+  const D = N12_DIRS[k], M = world.base.n12 || (world.base.n12 = {}); if (!D || !D.opts[o] || M[k] === o || !cleanIn(D.furn) || !labCan(N12_MOD_COST)) return; labPay(N12_MOD_COST); M[k] = o; tick(); sfx("craft");
+  log(`<span class="buff">N12가 ${D.furn}${jo(D.furn, "을", "를")} 개조했다: ${D.opts[o][0]} (${D.opts[o][1]})</span>`); render();
+  say([[mateWho(m, "laugh"), `${D.opts[o][0]}, 끝! 선은 벽 따라 깔아 뒀어요. 발에 걸리면 말해 주세요.`]], [["돌아간다", () => n12Shop(m)]]);
+}   // N12가 쉘터에 있으면 기름 한 통이 이틀
 function burnFuel() {
   const P = PW(); if (!P.on) return;
   if (!hasGen()) { P.on = false; return; }
@@ -8245,7 +8365,7 @@ function tvOn() {
 // 밤에 발전기 소리를 듣고 적들이 쉘터 문 앞까지 옴 (바리케이드가 높을수록 덜 옴)
 // 밤 습격: 발전기가 돌면 밤 10시부터 3시간마다(10시·1시·4시) 10%. 바리케이드 단계마다 -25% · 펫 · 진혁(절반, 와도 절반은 막음)
 const RAID_EVERY = 3 * HR; let raidPending = false, raidStop = false;
-function nightRaidChance() { return Math.max(0.02, 0.10 * Math.max(0.25, 1 - facLv("barricade") * 0.25) * petRaidMul() * (jhHome() ? 0.5 : 1) * (fenceLeft() ? 0.5 : 1)); }
+function nightRaidChance() { return Math.max(0.02, 0.10 * Math.max(0.25, 1 - facLv("barricade") * 0.25) * petRaidMul() * (jhHome() ? 0.5 : 1) * (fenceLeft() ? 0.5 : 1) * (n12Mod().gen === "quiet" ? 0.5 : 1)); }
 // 전기 철조망: 바리케이드에 배터리를 달면 밤 3번 동안 전기가 흐름 → 습격 확률 절반 · 그래도 쳐들어오면 적들이 감전돼 HP -25%로 시작. 아침마다 1씩 닳음
 const FENCE_NIGHTS = 3;
 function fenceLeft() { return hasFacility("barricade") ? world.fence || 0 : 0; }
@@ -8263,7 +8383,7 @@ function fenceSay() {
 }
 function raidRoll() {
   if (Math.random() >= nightRaidChance()) return;
-  const j = jhHome(); if (j && Math.random() < 0.5) { log(`<span class="buff">한밤중 쉘터 문밖이 소란했지만, ${j.name}${jo(j.name, "이", "가")} 먼저 나가 쫓아 보냈다.</span>`); return; }
+  const j = jhHome(); if (j && Math.random() < 0.5) { log(`<span class="buff">한밤중 쉘터 문밖이 소란했지만, ${j.name}${jo(j.name, "이", "가")} 먼저 나가 쫓아 보냈다.</span>`); const J = JH(); J.report = (J.report || 0) + 1; return; }
   if (atBase()) { raidPending = true; return; }
   raidAway();
 }
@@ -9264,7 +9384,7 @@ function defend() { tick(); if (bleedTick()) return; wearWeapon(); const red = M
   else { patUse(); const taken = guardDmg(Math.max(1, Math.round(monster.atk * (1 - red)))); player.hp -= taken; log(`방어. ${Math.round(red * 100)}% 막아 ${taken}만 입고, 반격 ${counter}.`); bq({ t: "claw", dmg: taken, heroHp: player.hp, blocked: true }); }
   monster.hp -= counter; bq({ t: "swing", dmg: counter, monHp: monster.hp, counter: true, bleed: monster.bleed ? monster.bleed.n : 0 }); if (monDead()) { win(); return; } if (mateHit()) { win(); return; } if (player.hp <= 0) { lose(); return; }
   if (!special) patNext(); render(); }
-function run() { if (monster && monster.graid) { log("레이드에선 물러설 수 없다. 쓰러질 때까지!"); render(); return; } tick(); if (Math.random() < fleePct() / 100) { log("간신히 따돌렸다."); bq({ t: "flee" }); staAdd(-3); monster = null; deepBack(); } else { const d = guardDmg(monster.atk); player.hp -= d; log(`도주 실패. ${d} 데미지.`); bq({ t: "fail", text: "도주 실패" }); bq({ t: "claw", dmg: d, heroHp: player.hp }); if (player.hp <= 0) { lose(); return; } } render(); }
+function run() { if (monster && monster.graid) { log("레이드에선 물러설 수 없다. 쓰러질 때까지!"); render(); return; } tick(); if (Math.random() < fleePct() / 100) { log("간신히 따돌렸다."); bq({ t: "flee" }); staAdd(-3); monster = null; deepBack(); } else if (jhMission() === "escort" && !monster.escorted) { monster.escorted = true; const m = jhOut(); log(`<span class="buff">도망치다 붙잡힐 뻔했지만 ${m.name}${jo(m.name, "이", "가")} 막아섰다. 빠져나왔다.</span>`); bq({ t: "flee" }); staAdd(-3); monster = null; deepBack(); } else { const d = guardDmg(monster.atk); player.hp -= d; log(`도주 실패. ${d} 데미지.`); bq({ t: "fail", text: "도주 실패" }); bq({ t: "claw", dmg: d, heroHp: player.hp }); if (player.hp <= 0) { lose(); return; } } render(); }
 function levelCheck() {   // 경험치가 차면 레벨 업 (교전 승리·레이드 뒤)
   while (player.exp >= player.level * 10) { player.exp -= player.level * 10; player.level++; sfx("levelup", 900); player.maxHp += 5; player.hp = player.maxHp; player.statPts = statPts() + LEVEL_PTS; log(`레벨 업. Lv.${player.level} · 능력치 포인트 +${LEVEL_PTS} (스킬 탭)`); }
 }
@@ -9335,6 +9455,83 @@ function truneUse(n) {
   const T = player.trunes || (player.trunes = {}), W = T[w.name] || (T[w.name] = {}); if ((W[R.k] || 0) + R.per > R.max + truneMaxBonus()) { log(`${w.name}에는 ${R.name}을 더 못 박는다. (최대 ${R.max + truneMaxBonus()}%)`); render(); return; }
   removeItem(n); W[R.k] = (W[R.k] || 0) + R.per; sfx("craft"); log(`<span class="buff">${w.name}에 ${n}${jo(n, "을", "를")} 박았다. ${R.name} 확률 +${R.per}% → ${W[R.k]}%</span>`); render();
 }
+// =============== 지영재: 탑 재료 연구 ===============
+// 처음 = 재료 분석 (박으면 어떻게 바뀌는지 · 한도를 미리 봄) · 친밀도 30 = 회수 연구 (박힌 재료를 빼거나 다른 무기로 옮김, 비용)
+// 친밀도 70 = 재배합 (남는 재료 2개 → 다른 종류 1개) · N12와 둘 다 친하면 공동 연구 (사흘에 한 번, 회로 기판 + 축전지 셀 → 탑 재료 1)
+const YJ_LAB = { pull: { "캡": 30, "배터리": 1 }, move: { "캡": 30 }, mix: 2, joint: { "회로 기판": 1, "축전지 셀": 1 }, jointGap: 3 };
+function truneMax(R) { return R.max + truneMaxBonus(); }
+function truneW(name) { return ((player.trunes || {})[name]) || {}; }
+function labCost(c) { return Object.entries(c).map(([n, k]) => n === "캡" ? `${k}캡` : `${n} ${k}`).join(" · "); }
+function labCan(c) { return Object.entries(c).every(([n, k]) => n === "캡" ? player.gold >= k : itemCount(n) >= k); }
+function labPay(c) { for (const [n, k] of Object.entries(c)) { if (n === "캡") player.gold -= k; else removeItem(n, k); } }
+function yjWho2(m, ex) { return mateWho(m, ex); }
+function lockCh(label, fn, note, locked, back) { return [locked ? `🔒 ${label}` : label, locked ? () => { say([[null, { text: note, cls: "k" }]], [["돌아간다", back]]); } : fn, note]; }
+// 분석: 지금 손에 든 무기에 재료를 박으면
+function yjAnalyze(n) { const R = TRUNE[n], w = player.weapon; if (!R) return ""; if (w.name === "맨손") return "손에 든 무기가 없다"; if (R.k !== "crit" && isGun()) return "총에는 못 박는다";
+  const now = truneOf(R.k), mx = truneMax(R), nx = now + R.per; return nx > mx ? `${R.name} ${now}% · 한도 ${mx}%라 더 못 박음` : `${R.name} ${now}% → ${nx}% (한도 ${mx}%)`; }
+function yjLab(m) {
+  if (!m || monster || !atBase()) return; const t = mateTier(m), w = player.weapon, who = yjWho2(m, "base"), ch = [];
+  const have = Object.keys(TRUNE).filter(n => itemCount(n) > 0);
+  const lines = [[who, t >= 1 ? "뭘 봐 줄까. …재료 얘기면 언제든 환영이야. 그건 재밌거든." : "재료? 줘 봐. 박기 전에 어떻게 될지 정도는 알려 줄 수 있어."]];
+  lines.push([null, { text: `손에 든 무기: ${w.name === "맨손" ? "없음" : weaponName()}${w.name !== "맨손" && truneTxt() ? ` · 지금 ${truneTxt()}` : ""}${truneMaxBonus() ? ` · 영재 덕분에 한도 +${truneMaxBonus()}%p` : ""}`, cls: "k" }]);
+  for (const n of have) { const a = yjAnalyze(n), ok = !/못/.test(a) && a !== "손에 든 무기가 없다"; ch.push(lockCh(`분석: ${n} (${itemCount(n)}개)`, () => yjInsert(m, n), `${a}${ok ? " · 누르면 박음" : ""}`, !ok, () => yjLab(m))); }
+  if (!have.length) lines.push([null, { text: "가진 탑 재료가 없다. 무한의 탑에서 쉬는 층까지 오르면 나온다.", cls: "k" }]);
+  if (t >= 1) { ch.push(["박힌 재료를 빼낸다", () => yjPullMenu(m), `회수 연구 · ${labCost(YJ_LAB.pull)}`]); ch.push(lockCh("다른 무기에 박힌 걸 이 무기로 옮긴다", () => yjMoveMenu(m), w.name === "맨손" ? "손에 든 무기 없음" : `회수 연구 · ${labCost(YJ_LAB.move)}`, w.name === "맨손", () => yjLab(m))); }
+  else ch.push(lockCh("회수 연구", null, "친밀도 30이 되면: 박힌 재료를 빼내거나 다른 무기로 옮김", true, () => yjLab(m)));
+  if (t >= 2) ch.push(["재료를 재배합한다", () => yjMixMenu(m), `같은 재료 ${YJ_LAB.mix}개 → 다른 재료 1개`]); else ch.push(lockCh("재배합", null, `친밀도 70이 되면: 같은 재료 ${YJ_LAB.mix}개 → 다른 재료 1개`, true, () => yjLab(m)));
+  const n12 = n12Home(); if (n12) { const R = YJ(), left = R.jointDay == null ? 0 : YJ_LAB.jointGap - (dayNo() - R.jointDay), ok = t >= 1 && mateTier(n12) >= 1;
+    ch.push(lockCh("N12와 공동 연구를 맡긴다", () => yjJoint(m, n12), !ok ? "둘 다 친밀도 30이 되면 공동 연구를 맡길 수 있다" : left > 0 ? `${left}일 뒤에 또` : `${labCost(YJ_LAB.joint)} → 탑 재료 1개`, !ok || left > 0, () => yjLab(m))); }
+  say(lines, [...ch, ["그만둔다"]]);
+}
+function yjInsert(m, n) { truneUse(n); yjLab(m); }
+function yjPullMenu(m) {
+  const L = []; for (const [wn, W] of Object.entries(player.trunes || {})) for (const [n, R] of Object.entries(TRUNE)) if ((W[R.k] || 0) >= R.per) L.push([wn, n, R]);
+  const who = yjWho2(m, "base");
+  if (!L.length) { say([[who, "박힌 재료가 없는데. …없는 걸 빼 달라는 건 연구가 아니야."]], [["돌아간다", () => yjLab(m)]]); return; }
+  say([[who, "빼면 재료는 멀쩡히 돌려줄게. 대신 배터리 하나는 태워야 해. 회로를 녹여서 떼어 내거든."]],
+    [...L.map(([wn, n, R]) => lockCh(`${wn} · ${R.name} ${truneW(wn)[R.k]}% → ${truneW(wn)[R.k] - R.per}%`, () => yjPull(m, wn, n), `${n} 1개 돌려받음 · ${labCost(YJ_LAB.pull)}${labCan(YJ_LAB.pull) ? "" : " (모자람)"}`, !labCan(YJ_LAB.pull), () => yjPullMenu(m))), ["돌아간다", () => yjLab(m)]]);
+}
+function yjPull(m, wn, n) {
+  const R = TRUNE[n], W = (player.trunes || {})[wn]; if (!R || !W || (W[R.k] || 0) < R.per || !labCan(YJ_LAB.pull)) return;
+  labPay(YJ_LAB.pull); W[R.k] -= R.per; addItem(n); sfx("craft"); log(`<span class="buff">${m.name}${jo(m.name, "이", "가")} ${wn}에서 ${n}${jo(n, "을", "를")} 빼냈다. (${R.name} ${W[R.k]}%)</span>`); render();
+  say([[yjWho2(m, "laugh"), "자, 멀쩡해. …이런 건 손이 기억하더라."]], [["돌아간다", () => yjLab(m)]]);
+}
+function yjMoveMenu(m) {
+  const w = player.weapon, who = yjWho2(m, "base"), L = [];
+  for (const [wn, W] of Object.entries(player.trunes || {})) if (wn !== w.name) for (const [n, R] of Object.entries(TRUNE)) if ((W[R.k] || 0) >= R.per) L.push([wn, n, R]);
+  if (!L.length) { say([[who, "옮길 게 없어. 다른 무기에 박힌 재료가 있어야지."]], [["돌아간다", () => yjLab(m)]]); return; }
+  say([[who, `${w.name}${jo(w.name, "으로", "로")} 옮기는 거지? 한도만 넘지 않으면 돼.`]],
+    [...L.map(([wn, n, R]) => { const now = truneOf(R.k), full = now + R.per > truneMax(R), gun = R.k !== "crit" && isGun();
+      return lockCh(`${wn}의 ${R.name} → ${w.name}`, () => yjMove(m, wn, n), gun ? "총에는 못 박는다" : full ? `${w.name} ${R.name} 한도 ${truneMax(R)}%` : `${R.name} ${now}% → ${now + R.per}% · ${labCost(YJ_LAB.move)}${labCan(YJ_LAB.move) ? "" : " (캡 모자람)"}`, gun || full || !labCan(YJ_LAB.move), () => yjMoveMenu(m)); }), ["돌아간다", () => yjLab(m)]]);
+}
+function yjMove(m, wn, n) {
+  const R = TRUNE[n], w = player.weapon, A = (player.trunes || {})[wn]; if (!R || !A || (A[R.k] || 0) < R.per || w.name === "맨손" || w.name === wn || !labCan(YJ_LAB.move)) return;
+  if (truneOf(R.k) + R.per > truneMax(R) || (R.k !== "crit" && isGun())) return;
+  const B = player.trunes[w.name] || (player.trunes[w.name] = {}); labPay(YJ_LAB.move); A[R.k] -= R.per; B[R.k] = (B[R.k] || 0) + R.per; sfx("craft");
+  log(`<span class="buff">${m.name}${jo(m.name, "이", "가")} ${wn}의 ${n}${jo(n, "을", "를")} ${w.name}${jo(w.name, "으로", "로")}옮겼다. (${R.name} ${B[R.k]}%)</span>`); render();
+  say([[yjWho2(m, "laugh"), "끝. 새 무기는 어때? …다음엔 어떻게 될지 보고 싶네."]], [["돌아간다", () => yjLab(m)]]);
+}
+function yjMixMenu(m) {
+  const who = yjWho2(m, "base"), L = [];
+  for (const a of Object.keys(TRUNE)) if (itemCount(a) >= YJ_LAB.mix) for (const b of Object.keys(TRUNE)) if (a !== b) L.push([a, b]);
+  if (!L.length) { say([[who, `같은 재료가 ${YJ_LAB.mix}개는 있어야 해. 녹이면서 반은 날아가거든.`]], [["돌아간다", () => yjLab(m)]]); return; }
+  say([[who, "녹여서 다시 굳히는 거야. 손실은 있어. …그래도 안 쓰는 걸 쌓아 두는 것보단 낫지."]], [...L.map(([a, b]) => [`${a} ${YJ_LAB.mix}개 → ${b} 1개`, () => yjMix(m, a, b), `가진 ${a} ${itemCount(a)}개`]), ["돌아간다", () => yjLab(m)]]);
+}
+function yjMix(m, a, b) {
+  if (!TRUNE[a] || !TRUNE[b] || itemCount(a) < YJ_LAB.mix) return; removeItem(a, YJ_LAB.mix); addItem(b); sfx("craft"); tick();
+  log(`<span class="buff">${m.name}${jo(m.name, "이", "가")} ${a} ${YJ_LAB.mix}개를 녹여 ${b}${jo(b, "을", "를")} 만들었다.</span>`); render();
+  say([[yjWho2(m, "laugh"), "됐다. …이 맛에 연구하는 거지."]], [["돌아간다", () => yjLab(m)]]);
+}
+// N12와 공동 연구: 둘 다 쉘터에 있고 친밀도 30 이상 · 사흘에 한 번
+function yjJoint(m, n12) {
+  const R = YJ(); if (!n12 || (R.jointDay != null && dayNo() - R.jointDay < YJ_LAB.jointGap)) return;
+  if (!labCan(YJ_LAB.joint)) { say([[yjWho2(m, "base"), `재료가 모자라. ${labCost(YJ_LAB.joint)}는 있어야 N12가 회로를 짜지.`]], [["돌아간다", () => yjLab(m)]]); return; }
+  labPay(YJ_LAB.joint); R.jointDay = dayNo(); const got = pick(Object.keys(TRUNE)); addItem(got); mateAff(m, 2); mateAff(n12, 2); sfx("craft"); tick();
+  say([[null, "작업대 위에서 N12가 회로 기판을 깎고, 지영재가 축전지 셀을 갈라 그 안의 결정을 핀셋으로 옮긴다. 둘 다 말이 없다."],
+       [{ name: "N12", face: { port: "n12", ex: "laugh" } }, "선생님, 여기 전압 이 정도면 돼요?"], [yjWho2(m, "laugh"), "…응. 넌 예전부터 손이 정확했어. {p}됐다. 하나 나왔어."]],
+      [["돌아간다", () => yjLab(m)]]);
+  log(`<span class="buff">N12와 ${m.name}의 공동 연구: ${got}${jo(got, "을", "를")} 얻었다. (둘 다 친밀도 +2)</span>`); render();
+}
 function truneTxt(w = player.weapon) { return Object.values(TRUNE).filter(R => truneOf(R.k, w)).map(R => R.fx(truneOf(R.k, w))).join(" · "); }
 // 무리 (최대 BAL.packMax 마리): 한 마리씩 차례로 앞에 나와 싸움. HP는 그대로 이어짐. 도망치면 무리 전체에서 도망
 function packCount(danger) { const r = Math.random(), d = Math.max(1, danger || 1); let n = r < 0.5 ? 1 : r < 0.75 ? 2 : r < 0.9 ? 3 : r < 0.97 ? 4 : 5; if (d <= 1) n = Math.min(n, 2); else if (d === 2) n = Math.min(n, 3); return Math.max(1, Math.min(n, BAL.packMax || 5)); }
@@ -9398,7 +9595,7 @@ function buy(i) { const it = curShop()[i], pr = priceOf(it); if (!it) return; if
   if (it.type === "paper" || it.type === "floor") { const O = decoOwn(), L = it.type === "paper" ? O.p : O.f; if (L.includes(it.idx)) return; player.gold -= pr; L.push(it.idx); sfx && sfx("buy");
     log(`<span class="buff">${it.name}${jo(it.name, "을", "를")} 샀다. 거점 꾸미기에서 언제든 쓸 수 있다.</span>`); render(); return; }
   if (it.type === "rumor") { const r = hiddenRumor(), who = { name: "야시장 상인", face: { prop: "stall" } }; if (!r) { say([[who, "더 팔 소문이 없어. 넌 이미 다 아는 눈치군."]]); return; } player.gold -= pr; say([[who, "자, 받아. 읽고 나면 태워 버려."], [{ name: "구겨진 쪽지", face: { prop: "cashbox" } }, `"${r}"`]]); log(`수상한 쪽지를 샀다. (${pr}캡)`); render(); return; } if (it.type !== "potion" && !bagRoom()) { log("가방이 꽉 찼다. 뭘 좀 팔거나 버리자."); render(); return; } player.gold -= pr; buyCount(it); sfx("coin"); npcTrade(); if (it.type === "potion") { player.potion++; log("붕대를 샀다."); } else { gain(it.name); log(`${it.name}${jo(it.name, "을", "를")} 샀다.${it.type === "weapon" ? " 가방에서 장비하자." : ""}`); } render(); }
-function enhanceChance() { return Math.max(0.2, Math.min(0.95, 0.9 - player.weapon.enhance * 0.1 + (job("scrapper") ? 0.1 : 0) + rankOf("대장간") * 0.02 + [0, 0, 0.1, 0.2][facLv("workbench")] + (elecOn("전동 공구대") ? (n12Home() && mateTier(n12Home()) >= 2 ? 0.2 : 0.15) : 0) + st("dex") * 0.01)); }
+function enhanceChance() { return Math.max(0.2, Math.min(0.95, 0.9 - player.weapon.enhance * 0.1 + (job("scrapper") ? 0.1 : 0) + rankOf("대장간") * 0.02 + [0, 0, 0.1, 0.2][facLv("workbench")] + (elecOn("전동 공구대") ? (n12Home() && mateTier(n12Home()) >= 2 ? 0.2 : 0.15) + (n12Mod().tool === "rate" ? 0.05 : 0) : 0) + st("dex") * 0.01)); }
 // 강화 방식별 재료 (재료 종류 수만큼 무기 둘레에 재료 칸이 생김)
 const ENH = {
   normal: { name: "일반", cost: { "고철": 2 } },
@@ -9415,7 +9612,9 @@ function enhance(modeE = enhMode) {
   const caps = enhCaps(modeE); if (player.gold < caps) { log(`캡이 모자라다. (${caps}캡)`); render(); return; }
   for (const [n, k] of Object.entries(E.cost)) removeItem(n, k); player.gold -= caps; tick(); const was = w.enhance;
   if (Math.random() < (modeE === "alloy" ? 1 : enhanceChance())) { w.enhance++; train("대장간", 2, w.enhance - 1); trialHit("대장간", "enh", w.enhance); log(`<span class="buff">강화 성공. ${weaponName()} (공격력 ${weaponAtk()})</span>`); if ([3, 5, 7].includes(w.enhance)) { log(`<span class="buff">${w.name}에 ${["", "", "", "빛이 돈다", "", "불꽃이 인다", "", "번개가 튄다"][w.enhance]}.</span>`); refreshHero(); } }
-  else { train("대장간", 1, w.enhance); if (modeE === "normal" && w.enhance > 0 && Math.random() < 0.5) { w.enhance--; log(`<span class="danger">강화 실패. 손상돼 ${weaponName()}.</span>`); refreshHero(); } else log("강화 실패. 재료만 날렸다."); }
+  else { train("대장간", 1, w.enhance);
+    if (n12Mod().safe && elecOn("전동 공구대")) { const back = Object.entries(E.cost).map(([n, k]) => [n, Math.floor(k / 2)]).filter(([, k]) => k > 0); back.forEach(([n, k]) => addItem(n, k)); if (back.length) log(`<span class="buff">N12의 안전 회로가 튀는 재료를 붙잡았다: ${back.map(([n, k]) => `${n} ${k}`).join(", ")} 돌려받음</span>`); }
+    if (modeE === "normal" && w.enhance > 0 && Math.random() < (n12Mod().tool === "soft" && elecOn("전동 공구대") ? 0.2 : 0.5)) { w.enhance--; log(`<span class="danger">강화 실패. 손상돼 ${weaponName()}.</span>`); refreshHero(); } else log("강화 실패. 재료만 날렸다."); }
   enhFx = { ok: w.enhance > was, down: w.enhance < was, at: Date.now() }; sfx(w.enhance > was ? "anvil" : "fizzle");
   render();
 }
@@ -12899,9 +13098,9 @@ function renderAcctPop() {
   if (keep) { const e2 = [...el.querySelectorAll("input")].find(i => i.placeholder === keep.ph); if (e2) { e2.focus(); try { e2.setSelectionRange(keep.s, keep.s); } catch (e) {} } }
 }
 // 버전: 바뀌면 처음 열 때 업데이트 내용 창. 웹에 올린 판이면 version.json 을 10분마다 보고 새 판이 나오면 새로고침 창
-const GAME_VER = "2026.11.03-60";
-const PATCH_NOTES = ["동료 방의 간이 침낭을 나무 침대로 바꿀 수 있어요 (방 안 장소 탭 · 작업대 2단계 · 나무 판자 6, 천 조각 6, 고철 2) · 아침 회복 +20% → +40%, 동료 자리는 그대로", "동료 방 아늑함(가구 4개 이상) 친밀도 +1은 현실 날짜로 하루에 한 번만"];
-const PATCH_LOG = [{"v": "2026.11.03-60", "notes": ["동료 방의 간이 침낭을 나무 침대로 바꿀 수 있어요 (방 안 장소 탭 · 작업대 2단계 · 나무 판자 6, 천 조각 6, 고철 2) · 아침 회복 +20% → +40%, 동료 자리는 그대로", "동료 방 아늑함(가구 4개 이상) 친밀도 +1은 현실 날짜로 하루에 한 번만"]}, {"v": "2026.11.03-58", "notes": ["추가 공격·급습 방어가 처음 뜰 땐 원 밑에 설명이 붙고 시간도 넉넉해요 (급습: 놓치면 추가 피해!)"]}, {"v": "2026.11.03-57", "notes": ["급습 방어를 원래대로: 내 행동 뒤 가끔 적이 급습하면 파란 원 → 누르면 막고 공격력 50%로 반격, 놓치면 적 공격의 70%만큼 맞아요 (방어 차례 말고도 떠요)", "추가 공격·급습 방어는 자동 전투 중엔 뜨지 않아요"]}, {"v": "2026.11.03-56", "notes": ["추가 공격·급습 방어를 다듬었어요: 놓쳐도 고른 행동은 그대로 (급습을 놓쳐도 보통 방어로 막음)", "추가 공격은 적을 빈틈으로 만들고 때렸을 때 자주 떠요 (보상) · 급습 방어는 방어를 고른 차례에만 · 성공하면 ‘추가 공격 성공! +12’, ‘완벽 방어! 피해 8 → 2’가 크게 떠요", "원을 누르는 곳이 넓어졌어요 (폰은 더 넓게)"]}, {"v": "2026.11.03-55", "notes": ["안내 글·전투 설명·설명서에서 ‘놈’을 ‘적’으로 바꿨어요 (동료·상인이 하는 말투는 그대로)"]}, {"v": "2026.11.03-54", "notes": ["몬스터 상태 칸의 빈틈·방심·다음 행동은 짧게 보이고, 마우스를 올리면(폰은 누르면) 설명이 떠요. 교전 중 칸이 다시 그려져도 설명 풍선이 사라지지 않아요"]}, {"v": "2026.11.03-53", "notes": ["공격 버튼의 숫자가 적의 방어·상성·빈틈을 반영한 예상 피해로 바뀌었어요 (공격력과 다르면 괄호로 같이) · 방어 버튼엔 반격 피해", "몬스터 상태 칸이 지금 상태를 보여 줘요: 까마귀·드론은 빈틈·방심이면 ‘회피 불가’, 까마귀가 맴돌면 ‘회피 50%’"]}, {"v": "2026.11.03-52", "notes": ["모든 몬스터에 예고 행동: 들개 덮치기, 무장 약탈자 방어 자세→조준 사격, 변이체 내려찍기(빈틈 ×1.6), 폭주 변이체 맹공 두 번→탈진, 감염자는 쓰러지면 꿈틀거림(한 번 더 때리면 끝), 방사능 쥐 오염된 이빨(피폭), 갯벌 게 집게 가드→휘두르기, 해적 소매치기, 탈주 실험체 재생, 경비 드론 조준→연사, 보안 터렛 집중 사격", "실험체 X-07은 남은 HP로 강타 → 에너지 방출(몰아 때리면 끊김) → 폭주로 바뀌어요", "교전 중 가끔 ‘추가 공격!’(빨간 원)·‘급습 방어!’(파란 원)가 떠요. 제때 누르면 한 번 더 때리거나 막고 반격, 급습을 놓치면 한 대 맞아요", "레이드 보스 HP: 첫 보스 5천, 두 번째부터 5만 이상", "캡 보관에서 맡기고 꺼낼 캡 수를 직접 적을 수 있어요 · 무리는 ‘이름 · 외 N마리’로 보여요"]}, {"v": "2026.11.03-51", "notes": ["동료를 최대 8명까지 들일 수 있어요 (간이 침낭 하나마다 1명)", "쉘터 넓히기 4·5·6단계: 큰 방 오른쪽 문 → 복도 → 동료 방 (단계마다 2개, 모두 6개). 빈 방에 들어가 동료에게 방을 주면 ‘○○의 방’이 되고, 밤과 쉬는 낮엔 거기서 지내요", "동료 방 꾸미기 보너스: 간이 침낭을 두면 아침 회복 +20%, 가구 4개 이상이면 아침마다 친밀도 +1"]}, {"v": "2026.11.03-49", "notes": ["암시장·야시장 구매 한도: 아드레날린은 통틀어 2개, 희귀 합금은 하루 1개, 무기(쇠파이프·마체테·소방도끼)는 한 번씩만", "무기 강화에 캡이 들어요: (지금 강화 + 1) × 20캡 · 안전 ×1.5 · 합금 ×2", "수납 창에서 상자 목록을 접을 수 있어요 (수납 가구가 4개 이상일 때)", "작업대 만들기의 무기를 둔기·날붙이·도끼·총으로 나눠 보여 줘요", "폰에서 화면이 조금 작아졌어요 (자동 90%, 설정 → 크기에서 75~100%)", "특별한 동료는 친밀도 70에서 ‘단짝’ 대신 고백의 답(연인·평생 친구)이 단계로 보여요"]}, {"v": "2026.11.02-47", "notes": ["교전 화면의 ‘다음: 강타’·빈틈·방심 표시와 상태 칸에 마우스를 올리면(폰은 누르면) 설명이 떠요"]}, {"v": "2026.11.02-46", "notes": ["베타에서도 새 버전이 올라오면 ‘새 버전이 나왔어’ 알림이 떠요"]}, {"v": "2026.11.02-45", "notes": ["까마귀 떼·경비 로봇의 큰 공격을 받아내지 않으면 빈틈 대신 ‘방심!’: 다음 한 번만 내 공격 ×1.3 · 피하지 못함, 적은 그대로 반격 (방어로 받아내야 진짜 빈틈)", "교전 연출이 끝나기 전엔 다음 행동을 누를 수 없어요 (연타로 행동이 쌓이지 않게)", "자동 전투: 한 번이라도 잡아 본 몬스터만, 알아서 공격하며 빨리 감기 · HP 35% 이하면 멈춤 (레이드·소굴 우두머리 제외)"]}, {"v": "2026.11.02-44", "notes": ["몬스터 예고 행동: 약탈자(강타)·까마귀 떼(급강하)·경비 로봇(충전 강타)이 큰 공격 전에 머리 위로 알려 줘요. 방어나 기절로 받아내면 빈틈(적이 한 차례 거름 · 내 공격 ×1.3)", "막힌 안쪽 문 안내에 녹슨 열쇠·도끼 종류 무기(손도끼·소방도끼·엔진 톱)를 적었어요"]}, {"v": "2026.11.02-42", "notes": ["잠긴 금속 상자·화물 상자를 열면 그 상자의 열린 그림이 나와요"]}, {"v": "2026.11.02-41", "notes": ["[베타] 지금까지의 베타 내용이 본섭에 들어갔다. 본섭과 같은 판"]}, {"v": "2026.11.02-40", "notes": ["[베타] 수색 보낸 동료가 그 장소에 있다 (일 맡긴 동료가 낮에 밭·부엌에 있는 것처럼). 말 걸면 오늘은 그만 돌아오게 할 수도", "[베타] 로우의 무기 내구 채우기를 늘 볼 수 있게 (하루 한 번) · ‘무기를 맡긴다’ 메뉴에도", "[베타] 수납 가구 키우기: 수납 창에서 단계마다 +10칸, 끝없이. 대신 수납 가구는 방마다 3개까지"]}, {"v": "2026.11.02-39", "notes": ["[베타] 도감에 CG 칸: 동료와 지나온 CG(고백 · 외출 · 엔딩)를 다시 볼 수 있다. 누르면 크게, ◀ ▶ · 방향키로 넘기기. 아직 못 본 건 ? 와 얻는 법"]}, {"v": "2026.11.02-38", "notes": ["버스 안에서 지도를 열면 빈 여백이 보이던 문제 고침 (버스를 세워 둔 곳이 가운데로)", "[베타] 상자 자리 · 무거운 짐 새로고침 (지난 베타)"]}, {"v": "2026.11.02-37", "notes": ["수색 보낼 곳을 고른 뒤에도 지도 위 ‘수색 보낼 곳을 눌러 줘’ 띠가 안 사라지던 문제 고침", "[베타] 상자 자리 · 무거운 짐 새로고침 (지난 베타)"]}, {"v": "2026.11.02-36", "notes": ["[베타] 상자 자리: 앞을 가리는 물건이 없고 옆에 설 자리가 있는 빈칸에 놓인다 (동쪽 통로에서 방벽 뒤에 숨던 문제)", "[베타] 짐이 무거운 채(가방 칸을 조금 넘김)로 새로고침하면 짐 하나가 쉘터 바닥으로 옮겨지던 문제 고침. 들 수 있는 최대를 넘을 때만 옮긴다"]}, {"v": "2026.11.02-35", "notes": ["[베타] 잠긴 상자 부수기는 이제 쇠지렛대가 있어야 한다: 쇠지렛대 1회 · 기력 8 · 1시간 · 소리에 적이 올 확률 40% (힘이 세면 줄어듦)", "[베타] 쇠지렛대: 작업대 도구 칸에서 고철 3, 한 개로 5번"]}, {"v": "2026.11.02-34", "notes": ["[베타] 잠긴 상자 그림: 실내는 녹슨 자물쇠 달린 금속 상자, 항만은 잠금쇠 달린 화물 상자 (따개비까지)", "[베타] 잠긴 상자 열기 · 부수기 (지난 베타)"]}, {"v": "2026.11.02-33", "notes": ["[베타] 막힌 캐비닛·쇠지렛대는 빼고, 잠긴 상자를 넓혔다: 녹슨 열쇠로 조용히 열거나, 열쇠 없이 힘으로 부수기(기력 10 · 1시간 · 소리에 적이 올 확률 40%, 힘이 세면 줄어듦)", "[베타] 잠긴 상자는 장소마다 이름이 다르다 (실내 = 잠긴 금속 상자 · 항만 = 잠금쇠 달린 화물 상자). 두고 가면 그 자리에 남고 지도에 ✦"]}, {"v": "2026.11.02-30", "notes": ["[베타] 탈주 실험체 그림 좌우 반전", "[베타] 연구소 몬스터 그림 · 보스 전리품 아이콘 (지난 베타)"]}, {"v": "2026.11.02-29", "notes": ["[베타] 연구소 몬스터 그림: 탈주 실험체 · 경비 드론(떠 있음) · 보안 터렛 · 실험체 X-07", "[베타] 보스 전리품 아이콘 4종 (두목의 인장 · 변이 핵 · 해적 나침반 · X-07 세포)", "[베타] 보스 위협 단계 · 무기 각성 ★ (지난 베타)"]}, {"v": "2026.11.02-28", "notes": ["[베타] 보스 위협 단계: 소굴 우두머리(무장 약탈자·폭주 변이체·해적 약탈자·실험체 X-07)는 잡을 때마다 1~10단계로 세진다. 습격 버튼 옆에 단계와 권장 공격력", "[베타] 보스 전리품 + 무기 각성 ★: 우두머리마다 전리품(두목의 인장·변이 핵·해적 나침반·X-07 세포). 작업대 '각성' 탭에서 무기에 넣으면 ★1~5, 공격력 +4/+6/+8/+10/×1.1과 보스 특성(캡+25%·흡혈·출혈·감전)이 붙는다. 무기를 바꿔 들거나 고쳐 만들어도 따라감", "[베타] 관리자 칸: 보스 전리품 ×10 묶음"]}, {"v": "2026.11.02-27", "notes": ["[베타] 젖소·토끼 그림을 다른 동물과 같은 화풍으로 바꿈", "[베타] 안아 주기 모션 (지난 베타)"]}, {"v": "2026.11.02-26", "notes": ["[베타] 안아 주기 모션: 펫·닭은 품에 안겨 꼼지락거리고 하트가 몽글몽글 · 젖소는 옆에서 끌어안음 · 낯가리는 펫은 펄쩍 빠져나가며 땀방울", "[베타] 관리자 칸: 펫 데려오기, 시설 전부 최고, 닭·젖소 가득 (지난 베타)"]}, {"v": "2026.11.02-25", "notes": ["[베타] 관리자 칸: 펫 데려오기(종마다 버튼 · 전부), 펫 전부 단짝, 시설 전부 최고 단계, 축사 닭·젖소 가득, 둥지·우유 통 채우기, 밤으로, 동료 한 명 데려오기", "[베타] 젖소·우유·토끼 펫·동물 안아 주기 (지난 베타)"]}, {"v": "2026.11.02-24", "notes": ["[베타] 젖소: 축사 2단계에 1마리·3단계에 2마리. 낮 상인이 판다 (220캡). 뒤뜰 여물통에 채소(배추·당근·호박·옥수수)나 곡식을 주면 다음 날 아침 우유 통에 우유가 찬다", "[베타] 우유: 그냥 마셔도 되고, 따뜻한 우유·달걀 푸딩·우유 수프를 만든다. 닭 당번이 우유도 걷고 여물도 준다", "[베타] 토끼 펫: 버려진 농장·온실을 수색하다 만난다 (채소로 데려옴). 데리고 다니면 도망이 잘되고, 쉘터에 두면 쓰다듬기·안기 정신력 1.5배", "[베타] 펫·닭·젖소를 안아 줄 수 있다 (하루 한 번 정신력 회복, 낯가리는 펫은 버둥대며 빠져나감)"]}, {"v": "2026.11.02-23", "notes": ["도움말(?)에 '축사' 항목 추가: 닭 사는 곳, 모이로 쓰는 곡식, 달걀 나오는 규칙, 닭 당번"]}, {"v": "2026.11.02-22", "notes": ["작업대·침낭(침대)·화로·선반 같은 시설도 꾸미기에서 다른 방으로 옮길 수 있음 (시설을 고르고 '다른 방으로 옮기기')"]}, {"v": "2026.11.02-21", "notes": ["꾸미기에서 가구를 다른 방(방·부엌·거실)으로 바로 옮길 수 있음. 가구를 고르고 '다른 방으로 옮기기' → 그 방에서 놓을 칸을 누름. 수납 가구 안의 물건도 그대로"]}, {"v": "2026.11.02-20", "notes": ["펫이 지낼 방을 고를 수 있음 (방·부엌·거실 중 열린 곳). 펫에게 말 걸어 '지낼 방을 정한다' 또는 인연 탭 펫 줄에서 고름. 방석은 어느 방에 둬도 됨"]}, {"v": "2026.11.02-19", "notes": ["무기를 바꿔 들어도 강화·개조가 사라지지 않음. 가방에 넣어 두면 기억했다가 그 무기를 다시 들면 그대로 돌아옴", "배낭 고치기 화면의 '고치면 ○개' 숫자가 지구력 보너스를 빼고 적히던 문제 고침"]}, {"v": "2026.11.02-18", "notes": ["동료 수색은 이제 권장 공격력(내가 갈 만한 곳)이 돼야 물건을 주워 옴. 모자란 곳에 보내면 빈손으로 크게 다쳐서 돌아옴", "수색 지도에서 권장 공격력이 모자란 곳은 붉게 빛나고, 고를 때 권장/지금 공격력이 보임"]}, {"v": "2026.11.02-17", "notes": ["동료 수색: [수색을 다녀온다]를 누르면 지도가 열려서 갈 곳을 직접 눌러 고름. 하루 걸려 다음 날 아침에 돌아옴", "수색은 한 번만 보내거나 '매일 다녀와'로 보내기 (아침마다 같은 곳으로 다시 떠남 · 동료 칸에서 끔)", "랜턴은 이제 배터리로 충전 (배터리 1개로 가득 · 기름통은 안 씀)", "바리케이드 전기 철조망: 배터리 1개 = 밤 3번. 습격 확률 절반, 그래도 쳐들어오면 적들이 감전돼 HP -25%", "정비사 개조 '전기 코일' (소방도끼·합금 대검·엔진 톱 같은 상위 무기만): 공격 +3 · 기절 +10% · 배터리 2개", "고침: 무한의 탑에 같이 가자고 하지 않은 동료가 따라오던 문제"]}, {"v": "2026.11.02-16", "notes": ["몬스터 레벨 맞춤 비율 조정: 레벨마다 체력 +8% · 방어 +0.24 (테스트 창 결과 반영)", "무한의 탑: 10층까지는 1~2마리로 천천히 세져서 보통 캐릭터도 깰 수 있게 · 11층부터 확 세짐 · 층 사이 회복 15% → 20%"]}, {"v": "2026.11.02-15", "notes": ["고침: 교전 화면에서 유태식·로우·N12가 몬스터 반대쪽을 보던 것", "고침: 대사창 이모티콘(하트·땀 등)이 잘려 안 보이던 것 → 대사창 안 위쪽에 뜸"]}, {"v": "2026.11.02-14", "notes": ["무한의 탑: 층 보상은 모아 뒀다가 5·10·15층… 쉬는 층에서 멈춰야 챙김 · 그 전에 쓰러지거나 내려가면 모은 보상만 잃음", "교전 중 '붕대'를 누르면 붕대·약초 붕대 등 치료 물건을 골라 쓸 수 있음 (탑에선 층마다 합쳐서 5번)", "고침: 무리 교전에서 다음 적이 나올 때 행동 단추가 사라지던 것"]}, {"v": "2026.11.02-13", "notes": ["업데이트 알림: 패치가 여러 번 나와도 마지막 공지 하나만 뜸 · '새 버전' 창에서 본 내역은 새로고침 뒤 또 안 뜸 · 전투·대화·다른 창이 떠 있으면 끝난 뒤에 알림"]}, {"v": "2026.11.02-12", "notes": ["고침: 무한의 탑 입장 창에 태그 글자(span)가 그대로 보이던 것 · 길드 게시판·길드원 대사도 같이"]}, {"v": "2026.11.02-11", "notes": ["무한의 탑: 쉘터에서 입장 · 하루(현실 날짜) 3번 · 층마다 1~5마리 무리, 점점 엄청 세짐 · 붕대는 층마다 5번 · 쓰러져도 잃는 것 없음", "탑 보상(확률): 핏빛 결정(출혈) · 충격 코일(기절) · 날 선 파편(강타) → 무기에 박으면 그 무기 종류에 계속 남음 · 10층마다 그 층부터 다시 오를 수 있음", "몬스터 무리: 랜덤 조우·습격에서 최대 5마리가 한 마리씩 차례로 덤빔 · 습격은 내 레벨에 맞는 적들로", "몬스터가 내 레벨에 맞춰 체력·공격·방어가 오름 (방어 = 한 방마다 그만큼 덜 들어감)", "새 능력치 '방어'(받는 피해 -2%씩)·'민첩'(피하기·도주) · 능력치 최대 20 → 50", "경험치 0.6배 · 수색에서 음식 나올 확률 줄임"]}, {"v": "2026.11.02-10", "notes": ["공지 창: 지금까지 업데이트 내역을 볼 수 있음 (PC 왼쪽 아래 '공지' · 폰은 위쪽 알림 옆 '공지')", "친밀도: 아침밥으로는 안 오름 · 이야기와 선물은 동료마다 현실 시간 30분에 한 번", "고백 알림 같은 친밀도 구간 알림은 딱 한 번만"]}, {"v": "2026.11.02-9", "notes": ["고침: 폰에서 선택지가 많으면 대사창 위가 잘리던 것 (장면 안에서 스크롤)", "고침: 이동 중 사건(떠돌이 상인 등)이 뜨면 거기서 멈춤 → 다음 곳 전투가 사건 대사창과 겹치지 않게", "N12·진혁·로우·태식은 떠나보내도 하루 뒤 처음 만난 곳에 돌아와 있음 (다시 데려오면 친밀도 -10, 기록 그대로)"]}, {"v": "2026.11.02-8", "notes": ["밤 습격: 발전기가 돌면 밤 10시·1시·4시마다 10% (바리케이드·펫·진혁으로 줄어듦)", "쉘터에 있으면 문 앞 교전(자다가 깨면 잔 만큼만 회복) · 밖에 있으면 수납 상자에서 2개쯤 털림", "N12 전기공 · 진혁 경계병 전용 특기"]}, {"v": "2026.11.02-7", "notes": ["N12 전용 특기 '전기공': 쉘터에 있으면 발전기 기름 이틀에 한 통 · 전기 가구 수리 재료 절반 · 친해지면 아침마다 배터리 · 단짝이면 공구대 +20%", "이진혁 전용 특기 '경계병': 쉘터에 있으면 밤 습격 절반 · 절반은 먼저 막아 줌 · 데리고 나가면 기습 -40% · 도주 +20% · 친해지면 사흘마다 탄약 3발"]}, {"v": "2026.11.02-6", "notes": ["거래 고침: 주고받는 도중 한쪽이 모자라서 취소돼도 물건이 사라지지 않게 (둘 다 준비된 뒤 한 번에 바꿈)", "거래 고침: 끝나지 않은 거래를 새 거래가 덮어쓰지 않게 · 새로고침해도 이어서 끝남", "거래 기록에 준 것·받은 것이 같이 남음"]}, {"v": "2026.11.02-5", "notes": ["고침: 동료 질문에 답하면 대답 대사만 뜨게 (친밀도·선물 글이 대사창에 또 뜨던 것)", "고침: 교환창 '확인'이 가끔 안 눌리던 것", "보온병으로 물을 뜨면 바로 깨끗한 물 3개 (요리에 바로 씀)"]}, {"v": "2026.11.02-4", "notes": ["거래: 친구 명함·월드챗 신분증·길드원에게 '거래' → 교환창에서 물건·캡을 올리고 둘 다 확인하면 교환", "고침: 유태식 씨앗·로우 설계도 선물이 친밀도가 오르내릴 때 다시 뜨던 것"]}, {"v": "2026.11.02-3", "notes": ["거래: 친구 명함·월드챗 신분증·길드원에게 '거래' → 교환창에서 물건·캡을 올리고 둘 다 확인하면 교환", "교환창: 올린 칸 누르면 1개 내림 · 바꾸면 둘 다 확인 풀림"]}, {"v": "2026.11.02-2", "notes": ["야시장 상인이 밤마다 벽지 1 · 바닥재 1씩 팜 (한 번 사면 계속 씀)", "벽지·바닥재: 처음엔 기본 몇 개만, 이미 칠해 둔 건 그대로 가짐"]}, {"v": "2026.11.02-1", "notes": ["꾸미기: 칸을 누르면 미리보기 → PC는 더블클릭, 폰은 A 단추로 확정", "전기: 발전기를 돌리면 밤에 쉘터 방마다 불이 켜지고 정신력이 참", "전기 효과 강화: 잠 1시간 덜·정신력 +10, 단련 가끔 ×2, 요리 15% 빠름, 공구대 +15%, 냉장고 30%", "발전기에 말 걸어 기름 붓기 · 발전기 위에 남은 기름 표시"]}, {"v": "2026.11.01-11", "notes": ["친구 요청: 보내면 상대가 수락·거절 (수락하면 서로 명함 받음)", "쉘터 장소 메뉴에 '모닥불을 피운다' (나무 판자 2)", "지도: 모르는 곳도 위험도 표시 (숫자 + 글)"]}, {"v": "2026.11.01-10", "notes": ["폐자재 야적장에서 천 조각도 나옴 (나무 판자·고철·천 조각)", "고침: 교전 화면이 안 뜨거나 가려지던 것", "보급 꾸러미 · 수색 음식 1.6배"]}, {"v": "2026.11.01-9", "notes": ["고침: 교전이 시작될 때 전투 화면·버튼이 가려지거나 안 뜨던 것 (안 뜨면 2초 안에 다시 그림)", "보급 꾸러미: 모두에게 한 번 들개 고기 2 · 나무 판자 2", "수색에서 먹을 것이 더 잘 나옴"]}, {"v": "2026.11.01-8", "notes": ["보급 꾸러미: 모두에게 한 번 들개 고기 2 · 나무 판자 2", "수색에서 먹을 것이 더 잘 나옴 (1.6배)", "이동 시간·기력이 위치로 정해짐 · 장소 안에서 걷는 건 시간이 안 듦"]}, {"v": "2026.11.01-7", "notes": ["고침: 수색 중 사건(쓰러진 생존자 등)이 뜰 때 대사가 '…획득'으로 바뀌어 보이던 것", "이동 시간·기력이 위치로 정해짐: 쉘터 근처 2시간 · 시가지 3시간 · 공장 지대 4시간 · 항구 5시간", "장소 안에서 걷는 건 시간이 안 듦"]}, {"v": "2026.11.01-6", "notes": ["이동 시간이 위치로 정해짐: 쉘터 근처 2시간 · 시가지 3시간 · 공장 지대 4시간 · 항구 5시간 (같은 지역 안은 1시간)", "기력도 위치에 따라: 6 · 10 · 14 · 18", "배고픔은 흐른 시간만큼 (1시간에 1)", "장소 안에서 걷는 건 시간이 안 듦", "아침이면 모든 장소 뒤질 거리가 3번으로 다시 참"]}, {"v": "2026.11.01-5", "notes": ["모든 장소: 아침이 되면 뒤질 거리가 다시 3번으로 꽉 참", "물가·방사능 장소도 3번", "안쪽 방이 있는 장소: 방마다 하루 3번 수색"]}, {"v": "2026.11.01-4", "notes": ["안쪽 방이 있는 장소: 방마다 하루 3번 수색", "월드챗에서 이름을 누르면 신분증 · 친구 추가", "월드챗은 하루 지난 글이 사라짐", "시작할 때 계정 창 · 업데이트 알림", "지도 아이콘 두 번 누르면 바로 이동"]}];   // 지난 업데이트 내역 (최신이 앞) · 공지 창
+const GAME_VER = "2026.11.03-62";
+const PATCH_NOTES = ["지영재 · 탑 재료 연구: 박기 전 분석(바뀌는 확률·한도) · 친밀도 30 회수 연구(박힌 재료 빼기 30캡+배터리 · 다른 무기로 옮기기 30캡) · 70 재배합(같은 재료 2개 → 다른 재료 1개) · N12와 공동 연구(사흘에 한 번, 회로 기판+축전지 셀 → 탑 재료)", "이진혁 · 엄호 요청: 데리고 나가면 하루 한 번 예고된 강공격 피해 -75% (친밀도 70이면 엄호 뒤 빈틈) · 친밀도 30부터 나갈 때 임무: 정찰(기습 -50%) / 호위(도주 +30%, 도주 실패 한 번 막음) · 밤 습격을 막으면 아침에 흔적과 보고", "N12 · 시설 개조: 친밀도 30 전동 공구대 안전 회로(강화 실패 때 재료 절반 돌려받음) · 70 개조 방향(공구대 정밀 조정/충격 완화 · 발전기 절전/방음) · 개조한 가구엔 초록 표시등과 선", "유태식 · 재배 계획: 밭마다 심을 작물·횟수 예약(빈 밭도 심음) · 친밀도 30 요리를 고르면 모자란 작물을 계획에 넣음 · 아침에 한 일을 한 줄로"];
+const PATCH_LOG = [{"v": "2026.11.03-62", "notes": ["지영재 · 탑 재료 연구: 박기 전 분석(바뀌는 확률·한도) · 친밀도 30 회수 연구(박힌 재료 빼기 30캡+배터리 · 다른 무기로 옮기기 30캡) · 70 재배합(같은 재료 2개 → 다른 재료 1개) · N12와 공동 연구(사흘에 한 번, 회로 기판+축전지 셀 → 탑 재료)", "이진혁 · 엄호 요청: 데리고 나가면 하루 한 번 예고된 강공격 피해 -75% (친밀도 70이면 엄호 뒤 빈틈) · 친밀도 30부터 나갈 때 임무: 정찰(기습 -50%) / 호위(도주 +30%, 도주 실패 한 번 막음) · 밤 습격을 막으면 아침에 흔적과 보고", "N12 · 시설 개조: 친밀도 30 전동 공구대 안전 회로(강화 실패 때 재료 절반 돌려받음) · 70 개조 방향(공구대 정밀 조정/충격 완화 · 발전기 절전/방음) · 개조한 가구엔 초록 표시등과 선", "유태식 · 재배 계획: 밭마다 심을 작물·횟수 예약(빈 밭도 심음) · 친밀도 30 요리를 고르면 모자란 작물을 계획에 넣음 · 아침에 한 일을 한 줄로"]}, {"v": "2026.11.03-60", "notes": ["동료 방의 간이 침낭을 나무 침대로 바꿀 수 있어요 (방 안 장소 탭 · 작업대 2단계 · 나무 판자 6, 천 조각 6, 고철 2) · 아침 회복 +20% → +40%, 동료 자리는 그대로", "동료 방 아늑함(가구 4개 이상) 친밀도 +1은 현실 날짜로 하루에 한 번만"]}, {"v": "2026.11.03-58", "notes": ["추가 공격·급습 방어가 처음 뜰 땐 원 밑에 설명이 붙고 시간도 넉넉해요 (급습: 놓치면 추가 피해!)"]}, {"v": "2026.11.03-57", "notes": ["급습 방어를 원래대로: 내 행동 뒤 가끔 적이 급습하면 파란 원 → 누르면 막고 공격력 50%로 반격, 놓치면 적 공격의 70%만큼 맞아요 (방어 차례 말고도 떠요)", "추가 공격·급습 방어는 자동 전투 중엔 뜨지 않아요"]}, {"v": "2026.11.03-56", "notes": ["추가 공격·급습 방어를 다듬었어요: 놓쳐도 고른 행동은 그대로 (급습을 놓쳐도 보통 방어로 막음)", "추가 공격은 적을 빈틈으로 만들고 때렸을 때 자주 떠요 (보상) · 급습 방어는 방어를 고른 차례에만 · 성공하면 ‘추가 공격 성공! +12’, ‘완벽 방어! 피해 8 → 2’가 크게 떠요", "원을 누르는 곳이 넓어졌어요 (폰은 더 넓게)"]}, {"v": "2026.11.03-55", "notes": ["안내 글·전투 설명·설명서에서 ‘놈’을 ‘적’으로 바꿨어요 (동료·상인이 하는 말투는 그대로)"]}, {"v": "2026.11.03-54", "notes": ["몬스터 상태 칸의 빈틈·방심·다음 행동은 짧게 보이고, 마우스를 올리면(폰은 누르면) 설명이 떠요. 교전 중 칸이 다시 그려져도 설명 풍선이 사라지지 않아요"]}, {"v": "2026.11.03-53", "notes": ["공격 버튼의 숫자가 적의 방어·상성·빈틈을 반영한 예상 피해로 바뀌었어요 (공격력과 다르면 괄호로 같이) · 방어 버튼엔 반격 피해", "몬스터 상태 칸이 지금 상태를 보여 줘요: 까마귀·드론은 빈틈·방심이면 ‘회피 불가’, 까마귀가 맴돌면 ‘회피 50%’"]}, {"v": "2026.11.03-52", "notes": ["모든 몬스터에 예고 행동: 들개 덮치기, 무장 약탈자 방어 자세→조준 사격, 변이체 내려찍기(빈틈 ×1.6), 폭주 변이체 맹공 두 번→탈진, 감염자는 쓰러지면 꿈틀거림(한 번 더 때리면 끝), 방사능 쥐 오염된 이빨(피폭), 갯벌 게 집게 가드→휘두르기, 해적 소매치기, 탈주 실험체 재생, 경비 드론 조준→연사, 보안 터렛 집중 사격", "실험체 X-07은 남은 HP로 강타 → 에너지 방출(몰아 때리면 끊김) → 폭주로 바뀌어요", "교전 중 가끔 ‘추가 공격!’(빨간 원)·‘급습 방어!’(파란 원)가 떠요. 제때 누르면 한 번 더 때리거나 막고 반격, 급습을 놓치면 한 대 맞아요", "레이드 보스 HP: 첫 보스 5천, 두 번째부터 5만 이상", "캡 보관에서 맡기고 꺼낼 캡 수를 직접 적을 수 있어요 · 무리는 ‘이름 · 외 N마리’로 보여요"]}, {"v": "2026.11.03-51", "notes": ["동료를 최대 8명까지 들일 수 있어요 (간이 침낭 하나마다 1명)", "쉘터 넓히기 4·5·6단계: 큰 방 오른쪽 문 → 복도 → 동료 방 (단계마다 2개, 모두 6개). 빈 방에 들어가 동료에게 방을 주면 ‘○○의 방’이 되고, 밤과 쉬는 낮엔 거기서 지내요", "동료 방 꾸미기 보너스: 간이 침낭을 두면 아침 회복 +20%, 가구 4개 이상이면 아침마다 친밀도 +1"]}, {"v": "2026.11.03-49", "notes": ["암시장·야시장 구매 한도: 아드레날린은 통틀어 2개, 희귀 합금은 하루 1개, 무기(쇠파이프·마체테·소방도끼)는 한 번씩만", "무기 강화에 캡이 들어요: (지금 강화 + 1) × 20캡 · 안전 ×1.5 · 합금 ×2", "수납 창에서 상자 목록을 접을 수 있어요 (수납 가구가 4개 이상일 때)", "작업대 만들기의 무기를 둔기·날붙이·도끼·총으로 나눠 보여 줘요", "폰에서 화면이 조금 작아졌어요 (자동 90%, 설정 → 크기에서 75~100%)", "특별한 동료는 친밀도 70에서 ‘단짝’ 대신 고백의 답(연인·평생 친구)이 단계로 보여요"]}, {"v": "2026.11.02-47", "notes": ["교전 화면의 ‘다음: 강타’·빈틈·방심 표시와 상태 칸에 마우스를 올리면(폰은 누르면) 설명이 떠요"]}, {"v": "2026.11.02-46", "notes": ["베타에서도 새 버전이 올라오면 ‘새 버전이 나왔어’ 알림이 떠요"]}, {"v": "2026.11.02-45", "notes": ["까마귀 떼·경비 로봇의 큰 공격을 받아내지 않으면 빈틈 대신 ‘방심!’: 다음 한 번만 내 공격 ×1.3 · 피하지 못함, 적은 그대로 반격 (방어로 받아내야 진짜 빈틈)", "교전 연출이 끝나기 전엔 다음 행동을 누를 수 없어요 (연타로 행동이 쌓이지 않게)", "자동 전투: 한 번이라도 잡아 본 몬스터만, 알아서 공격하며 빨리 감기 · HP 35% 이하면 멈춤 (레이드·소굴 우두머리 제외)"]}, {"v": "2026.11.02-44", "notes": ["몬스터 예고 행동: 약탈자(강타)·까마귀 떼(급강하)·경비 로봇(충전 강타)이 큰 공격 전에 머리 위로 알려 줘요. 방어나 기절로 받아내면 빈틈(적이 한 차례 거름 · 내 공격 ×1.3)", "막힌 안쪽 문 안내에 녹슨 열쇠·도끼 종류 무기(손도끼·소방도끼·엔진 톱)를 적었어요"]}, {"v": "2026.11.02-42", "notes": ["잠긴 금속 상자·화물 상자를 열면 그 상자의 열린 그림이 나와요"]}, {"v": "2026.11.02-41", "notes": ["[베타] 지금까지의 베타 내용이 본섭에 들어갔다. 본섭과 같은 판"]}, {"v": "2026.11.02-40", "notes": ["[베타] 수색 보낸 동료가 그 장소에 있다 (일 맡긴 동료가 낮에 밭·부엌에 있는 것처럼). 말 걸면 오늘은 그만 돌아오게 할 수도", "[베타] 로우의 무기 내구 채우기를 늘 볼 수 있게 (하루 한 번) · ‘무기를 맡긴다’ 메뉴에도", "[베타] 수납 가구 키우기: 수납 창에서 단계마다 +10칸, 끝없이. 대신 수납 가구는 방마다 3개까지"]}, {"v": "2026.11.02-39", "notes": ["[베타] 도감에 CG 칸: 동료와 지나온 CG(고백 · 외출 · 엔딩)를 다시 볼 수 있다. 누르면 크게, ◀ ▶ · 방향키로 넘기기. 아직 못 본 건 ? 와 얻는 법"]}, {"v": "2026.11.02-38", "notes": ["버스 안에서 지도를 열면 빈 여백이 보이던 문제 고침 (버스를 세워 둔 곳이 가운데로)", "[베타] 상자 자리 · 무거운 짐 새로고침 (지난 베타)"]}, {"v": "2026.11.02-37", "notes": ["수색 보낼 곳을 고른 뒤에도 지도 위 ‘수색 보낼 곳을 눌러 줘’ 띠가 안 사라지던 문제 고침", "[베타] 상자 자리 · 무거운 짐 새로고침 (지난 베타)"]}, {"v": "2026.11.02-36", "notes": ["[베타] 상자 자리: 앞을 가리는 물건이 없고 옆에 설 자리가 있는 빈칸에 놓인다 (동쪽 통로에서 방벽 뒤에 숨던 문제)", "[베타] 짐이 무거운 채(가방 칸을 조금 넘김)로 새로고침하면 짐 하나가 쉘터 바닥으로 옮겨지던 문제 고침. 들 수 있는 최대를 넘을 때만 옮긴다"]}, {"v": "2026.11.02-35", "notes": ["[베타] 잠긴 상자 부수기는 이제 쇠지렛대가 있어야 한다: 쇠지렛대 1회 · 기력 8 · 1시간 · 소리에 적이 올 확률 40% (힘이 세면 줄어듦)", "[베타] 쇠지렛대: 작업대 도구 칸에서 고철 3, 한 개로 5번"]}, {"v": "2026.11.02-34", "notes": ["[베타] 잠긴 상자 그림: 실내는 녹슨 자물쇠 달린 금속 상자, 항만은 잠금쇠 달린 화물 상자 (따개비까지)", "[베타] 잠긴 상자 열기 · 부수기 (지난 베타)"]}, {"v": "2026.11.02-33", "notes": ["[베타] 막힌 캐비닛·쇠지렛대는 빼고, 잠긴 상자를 넓혔다: 녹슨 열쇠로 조용히 열거나, 열쇠 없이 힘으로 부수기(기력 10 · 1시간 · 소리에 적이 올 확률 40%, 힘이 세면 줄어듦)", "[베타] 잠긴 상자는 장소마다 이름이 다르다 (실내 = 잠긴 금속 상자 · 항만 = 잠금쇠 달린 화물 상자). 두고 가면 그 자리에 남고 지도에 ✦"]}, {"v": "2026.11.02-30", "notes": ["[베타] 탈주 실험체 그림 좌우 반전", "[베타] 연구소 몬스터 그림 · 보스 전리품 아이콘 (지난 베타)"]}, {"v": "2026.11.02-29", "notes": ["[베타] 연구소 몬스터 그림: 탈주 실험체 · 경비 드론(떠 있음) · 보안 터렛 · 실험체 X-07", "[베타] 보스 전리품 아이콘 4종 (두목의 인장 · 변이 핵 · 해적 나침반 · X-07 세포)", "[베타] 보스 위협 단계 · 무기 각성 ★ (지난 베타)"]}, {"v": "2026.11.02-28", "notes": ["[베타] 보스 위협 단계: 소굴 우두머리(무장 약탈자·폭주 변이체·해적 약탈자·실험체 X-07)는 잡을 때마다 1~10단계로 세진다. 습격 버튼 옆에 단계와 권장 공격력", "[베타] 보스 전리품 + 무기 각성 ★: 우두머리마다 전리품(두목의 인장·변이 핵·해적 나침반·X-07 세포). 작업대 '각성' 탭에서 무기에 넣으면 ★1~5, 공격력 +4/+6/+8/+10/×1.1과 보스 특성(캡+25%·흡혈·출혈·감전)이 붙는다. 무기를 바꿔 들거나 고쳐 만들어도 따라감", "[베타] 관리자 칸: 보스 전리품 ×10 묶음"]}, {"v": "2026.11.02-27", "notes": ["[베타] 젖소·토끼 그림을 다른 동물과 같은 화풍으로 바꿈", "[베타] 안아 주기 모션 (지난 베타)"]}, {"v": "2026.11.02-26", "notes": ["[베타] 안아 주기 모션: 펫·닭은 품에 안겨 꼼지락거리고 하트가 몽글몽글 · 젖소는 옆에서 끌어안음 · 낯가리는 펫은 펄쩍 빠져나가며 땀방울", "[베타] 관리자 칸: 펫 데려오기, 시설 전부 최고, 닭·젖소 가득 (지난 베타)"]}, {"v": "2026.11.02-25", "notes": ["[베타] 관리자 칸: 펫 데려오기(종마다 버튼 · 전부), 펫 전부 단짝, 시설 전부 최고 단계, 축사 닭·젖소 가득, 둥지·우유 통 채우기, 밤으로, 동료 한 명 데려오기", "[베타] 젖소·우유·토끼 펫·동물 안아 주기 (지난 베타)"]}, {"v": "2026.11.02-24", "notes": ["[베타] 젖소: 축사 2단계에 1마리·3단계에 2마리. 낮 상인이 판다 (220캡). 뒤뜰 여물통에 채소(배추·당근·호박·옥수수)나 곡식을 주면 다음 날 아침 우유 통에 우유가 찬다", "[베타] 우유: 그냥 마셔도 되고, 따뜻한 우유·달걀 푸딩·우유 수프를 만든다. 닭 당번이 우유도 걷고 여물도 준다", "[베타] 토끼 펫: 버려진 농장·온실을 수색하다 만난다 (채소로 데려옴). 데리고 다니면 도망이 잘되고, 쉘터에 두면 쓰다듬기·안기 정신력 1.5배", "[베타] 펫·닭·젖소를 안아 줄 수 있다 (하루 한 번 정신력 회복, 낯가리는 펫은 버둥대며 빠져나감)"]}, {"v": "2026.11.02-23", "notes": ["도움말(?)에 '축사' 항목 추가: 닭 사는 곳, 모이로 쓰는 곡식, 달걀 나오는 규칙, 닭 당번"]}, {"v": "2026.11.02-22", "notes": ["작업대·침낭(침대)·화로·선반 같은 시설도 꾸미기에서 다른 방으로 옮길 수 있음 (시설을 고르고 '다른 방으로 옮기기')"]}, {"v": "2026.11.02-21", "notes": ["꾸미기에서 가구를 다른 방(방·부엌·거실)으로 바로 옮길 수 있음. 가구를 고르고 '다른 방으로 옮기기' → 그 방에서 놓을 칸을 누름. 수납 가구 안의 물건도 그대로"]}, {"v": "2026.11.02-20", "notes": ["펫이 지낼 방을 고를 수 있음 (방·부엌·거실 중 열린 곳). 펫에게 말 걸어 '지낼 방을 정한다' 또는 인연 탭 펫 줄에서 고름. 방석은 어느 방에 둬도 됨"]}, {"v": "2026.11.02-19", "notes": ["무기를 바꿔 들어도 강화·개조가 사라지지 않음. 가방에 넣어 두면 기억했다가 그 무기를 다시 들면 그대로 돌아옴", "배낭 고치기 화면의 '고치면 ○개' 숫자가 지구력 보너스를 빼고 적히던 문제 고침"]}, {"v": "2026.11.02-18", "notes": ["동료 수색은 이제 권장 공격력(내가 갈 만한 곳)이 돼야 물건을 주워 옴. 모자란 곳에 보내면 빈손으로 크게 다쳐서 돌아옴", "수색 지도에서 권장 공격력이 모자란 곳은 붉게 빛나고, 고를 때 권장/지금 공격력이 보임"]}, {"v": "2026.11.02-17", "notes": ["동료 수색: [수색을 다녀온다]를 누르면 지도가 열려서 갈 곳을 직접 눌러 고름. 하루 걸려 다음 날 아침에 돌아옴", "수색은 한 번만 보내거나 '매일 다녀와'로 보내기 (아침마다 같은 곳으로 다시 떠남 · 동료 칸에서 끔)", "랜턴은 이제 배터리로 충전 (배터리 1개로 가득 · 기름통은 안 씀)", "바리케이드 전기 철조망: 배터리 1개 = 밤 3번. 습격 확률 절반, 그래도 쳐들어오면 적들이 감전돼 HP -25%", "정비사 개조 '전기 코일' (소방도끼·합금 대검·엔진 톱 같은 상위 무기만): 공격 +3 · 기절 +10% · 배터리 2개", "고침: 무한의 탑에 같이 가자고 하지 않은 동료가 따라오던 문제"]}, {"v": "2026.11.02-16", "notes": ["몬스터 레벨 맞춤 비율 조정: 레벨마다 체력 +8% · 방어 +0.24 (테스트 창 결과 반영)", "무한의 탑: 10층까지는 1~2마리로 천천히 세져서 보통 캐릭터도 깰 수 있게 · 11층부터 확 세짐 · 층 사이 회복 15% → 20%"]}, {"v": "2026.11.02-15", "notes": ["고침: 교전 화면에서 유태식·로우·N12가 몬스터 반대쪽을 보던 것", "고침: 대사창 이모티콘(하트·땀 등)이 잘려 안 보이던 것 → 대사창 안 위쪽에 뜸"]}, {"v": "2026.11.02-14", "notes": ["무한의 탑: 층 보상은 모아 뒀다가 5·10·15층… 쉬는 층에서 멈춰야 챙김 · 그 전에 쓰러지거나 내려가면 모은 보상만 잃음", "교전 중 '붕대'를 누르면 붕대·약초 붕대 등 치료 물건을 골라 쓸 수 있음 (탑에선 층마다 합쳐서 5번)", "고침: 무리 교전에서 다음 적이 나올 때 행동 단추가 사라지던 것"]}, {"v": "2026.11.02-13", "notes": ["업데이트 알림: 패치가 여러 번 나와도 마지막 공지 하나만 뜸 · '새 버전' 창에서 본 내역은 새로고침 뒤 또 안 뜸 · 전투·대화·다른 창이 떠 있으면 끝난 뒤에 알림"]}, {"v": "2026.11.02-12", "notes": ["고침: 무한의 탑 입장 창에 태그 글자(span)가 그대로 보이던 것 · 길드 게시판·길드원 대사도 같이"]}, {"v": "2026.11.02-11", "notes": ["무한의 탑: 쉘터에서 입장 · 하루(현실 날짜) 3번 · 층마다 1~5마리 무리, 점점 엄청 세짐 · 붕대는 층마다 5번 · 쓰러져도 잃는 것 없음", "탑 보상(확률): 핏빛 결정(출혈) · 충격 코일(기절) · 날 선 파편(강타) → 무기에 박으면 그 무기 종류에 계속 남음 · 10층마다 그 층부터 다시 오를 수 있음", "몬스터 무리: 랜덤 조우·습격에서 최대 5마리가 한 마리씩 차례로 덤빔 · 습격은 내 레벨에 맞는 적들로", "몬스터가 내 레벨에 맞춰 체력·공격·방어가 오름 (방어 = 한 방마다 그만큼 덜 들어감)", "새 능력치 '방어'(받는 피해 -2%씩)·'민첩'(피하기·도주) · 능력치 최대 20 → 50", "경험치 0.6배 · 수색에서 음식 나올 확률 줄임"]}, {"v": "2026.11.02-10", "notes": ["공지 창: 지금까지 업데이트 내역을 볼 수 있음 (PC 왼쪽 아래 '공지' · 폰은 위쪽 알림 옆 '공지')", "친밀도: 아침밥으로는 안 오름 · 이야기와 선물은 동료마다 현실 시간 30분에 한 번", "고백 알림 같은 친밀도 구간 알림은 딱 한 번만"]}, {"v": "2026.11.02-9", "notes": ["고침: 폰에서 선택지가 많으면 대사창 위가 잘리던 것 (장면 안에서 스크롤)", "고침: 이동 중 사건(떠돌이 상인 등)이 뜨면 거기서 멈춤 → 다음 곳 전투가 사건 대사창과 겹치지 않게", "N12·진혁·로우·태식은 떠나보내도 하루 뒤 처음 만난 곳에 돌아와 있음 (다시 데려오면 친밀도 -10, 기록 그대로)"]}, {"v": "2026.11.02-8", "notes": ["밤 습격: 발전기가 돌면 밤 10시·1시·4시마다 10% (바리케이드·펫·진혁으로 줄어듦)", "쉘터에 있으면 문 앞 교전(자다가 깨면 잔 만큼만 회복) · 밖에 있으면 수납 상자에서 2개쯤 털림", "N12 전기공 · 진혁 경계병 전용 특기"]}, {"v": "2026.11.02-7", "notes": ["N12 전용 특기 '전기공': 쉘터에 있으면 발전기 기름 이틀에 한 통 · 전기 가구 수리 재료 절반 · 친해지면 아침마다 배터리 · 단짝이면 공구대 +20%", "이진혁 전용 특기 '경계병': 쉘터에 있으면 밤 습격 절반 · 절반은 먼저 막아 줌 · 데리고 나가면 기습 -40% · 도주 +20% · 친해지면 사흘마다 탄약 3발"]}, {"v": "2026.11.02-6", "notes": ["거래 고침: 주고받는 도중 한쪽이 모자라서 취소돼도 물건이 사라지지 않게 (둘 다 준비된 뒤 한 번에 바꿈)", "거래 고침: 끝나지 않은 거래를 새 거래가 덮어쓰지 않게 · 새로고침해도 이어서 끝남", "거래 기록에 준 것·받은 것이 같이 남음"]}, {"v": "2026.11.02-5", "notes": ["고침: 동료 질문에 답하면 대답 대사만 뜨게 (친밀도·선물 글이 대사창에 또 뜨던 것)", "고침: 교환창 '확인'이 가끔 안 눌리던 것", "보온병으로 물을 뜨면 바로 깨끗한 물 3개 (요리에 바로 씀)"]}, {"v": "2026.11.02-4", "notes": ["거래: 친구 명함·월드챗 신분증·길드원에게 '거래' → 교환창에서 물건·캡을 올리고 둘 다 확인하면 교환", "고침: 유태식 씨앗·로우 설계도 선물이 친밀도가 오르내릴 때 다시 뜨던 것"]}, {"v": "2026.11.02-3", "notes": ["거래: 친구 명함·월드챗 신분증·길드원에게 '거래' → 교환창에서 물건·캡을 올리고 둘 다 확인하면 교환", "교환창: 올린 칸 누르면 1개 내림 · 바꾸면 둘 다 확인 풀림"]}, {"v": "2026.11.02-2", "notes": ["야시장 상인이 밤마다 벽지 1 · 바닥재 1씩 팜 (한 번 사면 계속 씀)", "벽지·바닥재: 처음엔 기본 몇 개만, 이미 칠해 둔 건 그대로 가짐"]}, {"v": "2026.11.02-1", "notes": ["꾸미기: 칸을 누르면 미리보기 → PC는 더블클릭, 폰은 A 단추로 확정", "전기: 발전기를 돌리면 밤에 쉘터 방마다 불이 켜지고 정신력이 참", "전기 효과 강화: 잠 1시간 덜·정신력 +10, 단련 가끔 ×2, 요리 15% 빠름, 공구대 +15%, 냉장고 30%", "발전기에 말 걸어 기름 붓기 · 발전기 위에 남은 기름 표시"]}, {"v": "2026.11.01-11", "notes": ["친구 요청: 보내면 상대가 수락·거절 (수락하면 서로 명함 받음)", "쉘터 장소 메뉴에 '모닥불을 피운다' (나무 판자 2)", "지도: 모르는 곳도 위험도 표시 (숫자 + 글)"]}, {"v": "2026.11.01-10", "notes": ["폐자재 야적장에서 천 조각도 나옴 (나무 판자·고철·천 조각)", "고침: 교전 화면이 안 뜨거나 가려지던 것", "보급 꾸러미 · 수색 음식 1.6배"]}, {"v": "2026.11.01-9", "notes": ["고침: 교전이 시작될 때 전투 화면·버튼이 가려지거나 안 뜨던 것 (안 뜨면 2초 안에 다시 그림)", "보급 꾸러미: 모두에게 한 번 들개 고기 2 · 나무 판자 2", "수색에서 먹을 것이 더 잘 나옴"]}, {"v": "2026.11.01-8", "notes": ["보급 꾸러미: 모두에게 한 번 들개 고기 2 · 나무 판자 2", "수색에서 먹을 것이 더 잘 나옴 (1.6배)", "이동 시간·기력이 위치로 정해짐 · 장소 안에서 걷는 건 시간이 안 듦"]}, {"v": "2026.11.01-7", "notes": ["고침: 수색 중 사건(쓰러진 생존자 등)이 뜰 때 대사가 '…획득'으로 바뀌어 보이던 것", "이동 시간·기력이 위치로 정해짐: 쉘터 근처 2시간 · 시가지 3시간 · 공장 지대 4시간 · 항구 5시간", "장소 안에서 걷는 건 시간이 안 듦"]}, {"v": "2026.11.01-6", "notes": ["이동 시간이 위치로 정해짐: 쉘터 근처 2시간 · 시가지 3시간 · 공장 지대 4시간 · 항구 5시간 (같은 지역 안은 1시간)", "기력도 위치에 따라: 6 · 10 · 14 · 18", "배고픔은 흐른 시간만큼 (1시간에 1)", "장소 안에서 걷는 건 시간이 안 듦", "아침이면 모든 장소 뒤질 거리가 3번으로 다시 참"]}, {"v": "2026.11.01-5", "notes": ["모든 장소: 아침이 되면 뒤질 거리가 다시 3번으로 꽉 참", "물가·방사능 장소도 3번", "안쪽 방이 있는 장소: 방마다 하루 3번 수색"]}, {"v": "2026.11.01-4", "notes": ["안쪽 방이 있는 장소: 방마다 하루 3번 수색", "월드챗에서 이름을 누르면 신분증 · 친구 추가", "월드챗은 하루 지난 글이 사라짐", "시작할 때 계정 창 · 업데이트 알림", "지도 아이콘 두 번 누르면 바로 이동"]}];   // 지난 업데이트 내역 (최신이 앞) · 공지 창
 // 공지 (업데이트 내역): PC는 왼쪽 아래 '공지', 폰은 위 알림 옆 '공지'. 안 본 업데이트가 있으면 노랗게
 let newsShown = false;
 function newsUnseen() { return storeGet("rpg_newsSeen") !== GAME_VER; }
